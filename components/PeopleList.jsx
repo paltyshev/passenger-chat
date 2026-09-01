@@ -30,13 +30,13 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
   }, [load]);
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex h-[100dvh] flex-col overflow-hidden">
       <div className="p-4 border-b">
         <h1 className="text-lg font-semibold mb-1">Собеседники рядом</h1>
         <p className="text-sm text-slate-500">Вы: {me.name}</p>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto px-4 py-3 border-b">
+      <div className="sticky top-0 z-10 flex gap-2 overflow-x-auto border-b bg-white px-4 py-3 shrink-0">
         {tabs.map((t) => (
           <button
             key={t}
@@ -53,7 +53,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
         {loading && <p className="text-sm text-slate-400">Загрузка...</p>}
         {!loading && users.length === 0 && (
           <p className="text-sm text-slate-400">
@@ -84,7 +84,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
         </ul>
       </div>
 
-      <div className="p-4 border-t flex gap-2">
+      <div className="shrink-0 border-t p-4 flex gap-2 bg-white">
         <button
           onClick={onLeave}
           className="flex-1 border border-red-300 text-red-600 rounded-lg py-2.5 text-sm font-medium"
