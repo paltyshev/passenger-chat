@@ -3,6 +3,26 @@
 import { useState } from 'react';
 import { TOPICS } from '@/lib/topics';
 
+function normalizePhoneInput(value) {
+  const digits = value.replace(/\D/g, '');
+
+  if (!digits) return '';
+
+  if (digits.startsWith('79')) {
+    return `+79${digits.slice(2)}`;
+  }
+
+  if (digits.startsWith('8') || digits.startsWith('7')) {
+    return `+7${digits.slice(1)}`;
+  }
+
+  if (digits.startsWith('9')) {
+    return `+79${digits.slice(1)}`;
+  }
+
+  return value.replace(/[^\d+]/g, '').slice(0, 20);
+}
+
 export default function RegisterForm({ onRegistered }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -66,9 +86,10 @@ export default function RegisterForm({ onRegistered }) {
         <input
           className="border rounded-lg px-3 py-2 text-base"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e) => setPhone(normalizePhoneInput(e.target.value))}
           placeholder="+7 900 000-00-00"
           type="tel"
+          inputMode="numeric"
           maxLength={20}
         />
       </div>
