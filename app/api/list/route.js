@@ -7,6 +7,7 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const selfId = searchParams.get('id') || '';
   const topic = searchParams.get('topic') || '';
+  const ageGroup = searchParams.get('ageGroup') || '';
 
   const now = Date.now();
   // чистим протухшие записи из индекса
@@ -28,8 +29,12 @@ export async function GET(req) {
     users = users.filter((u) => Array.isArray(u.topics) && u.topics.includes(topic));
   }
 
-  // не отдаём телефон в общем списке — только имя и темы
-  const safeUsers = users.map(({ id, name, topics }) => ({ id, name, topics }));
+  if (ageGroup) {
+    users = users.filter((u) => u.ageGroup === ageGroup);
+  }
+
+  // не отдаём телефон в общем списке — только имя, темы и возрастную группу
+  const safeUsers = users.map(({ id, name, topics, ageGroup }) => ({ id, name, topics, ageGroup }));
 
   return NextResponse.json({ users: safeUsers });
 }

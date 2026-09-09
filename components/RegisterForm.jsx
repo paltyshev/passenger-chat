@@ -2,31 +2,14 @@
 
 import { useState } from 'react';
 import { TOPICS } from '@/lib/topics';
-
-function normalizePhoneInput(value) {
-  const digits = value.replace(/\D/g, '');
-
-  if (!digits) return '';
-
-  if (digits.startsWith('79')) {
-    return `+79${digits.slice(2)}`;
-  }
-
-  if (digits.startsWith('8') || digits.startsWith('7')) {
-    return `+7${digits.slice(1)}`;
-  }
-
-  if (digits.startsWith('9')) {
-    return `+79${digits.slice(1)}`;
-  }
-
-  return value.replace(/[^\d+]/g, '').slice(0, 20);
-}
+import { AGE_GROUPS } from '@/lib/ageGroups';
+import { normalizePhoneInput, isValidRuPhone } from '@/lib/phone';
 
 export default function RegisterForm({ onRegistered }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [topics, setTopics] = useState([]);
+  const [ageGroup, setAgeGroup] = useState('');
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,13 +20,19 @@ export default function RegisterForm({ onRegistered }) {
     );
   }
 
+  function handlePhoneChange(e) {
+    const raw = e.target.value;
+    setPhone((prev) => normalizePhoneInput(prev, raw));
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
 
     if (!name.trim()) return setError('Введите имя');
-    if (!phone.trim()) return setError('Введите телефон');
+    if (!isValidRuPhone(phone)) return setError('Введите корректный номер телефона: +7 900 000-00-00');
     if (topics.length === 0) return setError('Выберите хотя бы одну тему');
+    if (!ageGroup) return setError('Укажите возрастную группу');
     if (!consent) return setError('Нужно согласие на обработку персональных данных');
 
     setLoading(true);
@@ -51,14 +40,14 @@ export default function RegisterForm({ onRegistered }) {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, topics, consent }),
+        body: JSON.stringify({ name, phone, topics, ageGroup, consent }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError('Не удалось начать поиск, попробуйте ещё раз');
         return;
       }
-      onRegistered({ id: data.id, name: name.trim(), phone: phone.trim(), topics });
+      onRegistered({ id: data.id, name: name.trim(), phone: phone.trim(), topics, ageGroup });
     } catch {
       setError('Ошибка сети, попробуйте ещё раз');
     } finally {
@@ -86,11 +75,12 @@ export default function RegisterForm({ onRegistered }) {
         <input
           className="border rounded-lg px-3 py-2 text-base"
           value={phone}
-          onChange={(e) => setPhone(normalizePhoneInput(e.target.value))}
+          onChange={handlePhoneChange}
           placeholder="+7 900 000-00-00"
           type="tel"
-          inputMode="numeric"
-          maxLength={20}
+          inputMode="tel"
+          autoComplete="tel"
+          maxLength={18}
         />
       </div>
 
@@ -112,6 +102,30 @@ export default function RegisterForm({ onRegistered }) {
                 }
               >
                 {t}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-sm text-slate-600">Возраст (сервис доступен с 18 лет)</label>
+        <div className="flex flex-wrap gap-2">
+          {AGE_GROUPS.map((g) => {
+            const active = ageGroup === g;
+            return (
+              <button
+                type="button"
+                key={g}
+                onClick={() => setAgeGroup(g)}
+                className={
+                  'px-3 py-1.5 rounded-full text-sm border transition ' +
+                  (active
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-700 border-slate-300')
+                }
+              >
+                {g}
               </button>
             );
           })}
