@@ -1,0 +1,35 @@
+services:
+  passenger-chat:
+    build: .
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Moscow
+      UPSTASH_REDIS_REST_URL: http://redis-srh:80
+      UPSTASH_REDIS_REST_TOKEN: ${SRH_TOKEN}
+    networks: [passenger_net]
+    # публичных портов нет — доступ только изнутри passenger_net (через nginx opros)
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    networks: [passenger_net]
+
+  redis-srh:
+    image: hiett/serverless-redis-http:latest
+    restart: unless-stopped
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: ${SRH_TOKEN}
+      SRH_CONNECTION_STRING: redis://default:${REDIS_PASSWORD}@redis:6379
+    depends_on: [redis]
+    networks: [passenger_net]
+
+networks:
+  passenger_net:
+    name: passenger_net
+
+volumes:
+  redis-data:
