@@ -9,8 +9,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# public/ в этом репозитории не используется (нет статики вроде favicon) —
-# создаём пустым, чтобы следующий COPY --from=builder не падал на отсутствующем каталоге
+# Создаём каталог, если в сборку не добавлена пользовательская статика.
 RUN mkdir -p public
 RUN npm run build
 
