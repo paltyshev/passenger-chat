@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TOPICS } from '@/lib/topics';
 import { AGE_GROUPS } from '@/lib/ageGroups';
 import { normalizePhoneInput, isValidRuPhone } from '@/lib/phone';
@@ -13,6 +13,10 @@ export default function RegisterForm({ onRegistered }) {
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState('form'); // 'form' | 'call'
+  const [verify, setVerify] = useState(null); // {token, callPhone, callPhonePretty}
+  const [secondsLeft, setSecondsLeft] = useState(300);
+  const finishing = useRef(false);
 
   function toggleTopic(t) {
     setTopics((prev) =>
@@ -25,6 +29,7 @@ export default function RegisterForm({ onRegistered }) {
     setPhone((prev) => normalizePhoneInput(prev, raw));
   }
 
+  // Шаг 1: валидируем форму и просим sms.ru выдать номер, на который надо позвонить
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
@@ -37,22 +42,120 @@ export default function RegisterForm({ onRegistered }) {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/register', {
+      const res = await fetch('/api/verify/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, topics, ageGroup, consent }),
+        body: JSON.stringify({ phone }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setError('Не удалось начать поиск, попробуйте ещё раз');
+      if (res.status === 429) {
+        setError('Слишком много попыток. Попробуйте позже.');
         return;
       }
-      onRegistered({ id: data.id, name: name.trim(), phone: phone.trim(), topics, ageGroup });
+      if (!res.ok) {
+        setError(
+          data.error === 'invalid_phone'
+            ? 'Проверьте номер телефона'
+            : 'Не удалось запустить проверку номера, попробуйте ещё раз'
+        );
+        return;
+      }
+      finishing.current = false;
+      setSecondsLeft(data.expiresInSec || 300);
+      setVerify(data);
+      setStep('call');
     } catch {
       setError('Ошибка сети, попробуйте ещё раз');
     } finally {
       setLoading(false);
     }
+  }
+
+  // Шаг 2: номер подтверждён звонком — создаём запись
+  async function finishRegistration(token) {
+    if (finishing.current) return;
+    finishing.current = true;
+    try {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, topics, ageGroup, consent, verifyToken: token }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError('Не удалось начать поиск, попробуйте ещё раз');
+        setStep('form');
+        return;
+      }
+      onRegistered({ id: data.id, name: name.trim(), phone: phone.trim(), topics, ageGroup });
+    } catch {
+      setError('Ошибка сети, попробуйте ещё раз');
+      setStep('form');
+    }
+  }
+
+  // Пока открыт экран со звонком — опрашиваем статус и ведём обратный отсчёт
+  useEffect(() => {
+    if (step !== 'call' || !verify) return;
+
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/verify/status?token=${encodeURIComponent(verify.token)}`);
+        const data = await res.json();
+        if (data.status === 'confirmed') {
+          clearInterval(poll);
+          finishRegistration(verify.token);
+        } else if (data.status === 'expired') {
+          clearInterval(poll);
+          setError('Время на звонок истекло. Попробуйте ещё раз.');
+          setStep('form');
+        }
+      } catch {
+        // временная ошибка сети — следующий опрос повторит
+      }
+    }, 3000);
+
+    const tick = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000);
+
+    return () => {
+      clearInterval(poll);
+      clearInterval(tick);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, verify]);
+
+  if (step === 'call' && verify) {
+    const mm = String(Math.floor(secondsLeft / 60)).padStart(1, '0');
+    const ss = String(secondsLeft % 60).padStart(2, '0');
+    return (
+      <div className="p-5 flex flex-col gap-4">
+        <h1 className="text-lg font-semibold">Подтвердите номер</h1>
+        <p className="text-sm text-slate-600">
+          Позвоните <b>со своего номера {phone}</b> на номер ниже. Звонок бесплатный — он
+          сбросится сам, ничего говорить не нужно.
+        </p>
+        <a
+          href={`tel:+${verify.callPhone}`}
+          className="block text-center text-2xl font-mono py-4 rounded-xl bg-slate-900 text-white"
+        >
+          {verify.callPhonePretty}
+        </a>
+        <p className="text-sm text-slate-500 text-center">
+          Ждём звонок… осталось {mm}:{ss}
+        </p>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <button
+          type="button"
+          onClick={() => {
+            setStep('form');
+            setVerify(null);
+          }}
+          className="text-sm text-slate-500 underline"
+        >
+          Изменить номер
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -156,7 +259,7 @@ export default function RegisterForm({ onRegistered }) {
         disabled={loading}
         className="mt-2 bg-slate-900 text-white rounded-lg py-3 text-base font-medium disabled:opacity-50"
       >
-        {loading ? 'Ищем...' : 'Начать поиск собеседников'}
+        {loading ? 'Подождите...' : 'Подтвердить номер и начать поиск'}
       </button>
     </form>
   );

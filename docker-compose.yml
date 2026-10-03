@@ -6,6 +6,7 @@ services:
       TZ: Europe/Moscow
       UPSTASH_REDIS_REST_URL: http://redis-srh:80
       UPSTASH_REDIS_REST_TOKEN: ${SRH_TOKEN}
+      SMSRU_API_ID: ${SMSRU_API_ID}
     networks: [passenger_net]
     # публичных портов нет — доступ только изнутри passenger_net (через nginx opros)
 

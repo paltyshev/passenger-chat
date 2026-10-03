@@ -1,0 +1,487 @@
+diff --git a/.env.example b/.env.example
+index 9d01d17..8d35bae 100644
+--- a/.env.example
++++ b/.env.example
+@@ -7,3 +7,9 @@ KV_REST_API_TOKEN=
+ # можно оставить оба варианта, код проверяет оба:
+ UPSTASH_REDIS_REST_URL=
+ UPSTASH_REDIS_REST_TOKEN=
++
++# sms.ru — проверка номера по звонку. api_id в личном кабинете sms.ru (главная страница).
++# Никогда не коммитить реальное значение.
++SMSRU_API_ID=
++# Только для локальной разработки: 1 = не звонить в sms.ru, подтверждать "звонок" через 6 секунд
++CALLCHECK_MOCK=
+diff --git a/.env.production.example b/.env.production.example
+index 94ac5e0..8f7b696 100644
+--- a/.env.production.example
++++ b/.env.production.example
+@@ -3,3 +3,6 @@
+ 
+ REDIS_PASSWORD=
+ SRH_TOKEN=
++
++# api_id из личного кабинета sms.ru (проверка номера по звонку)
++SMSRU_API_ID=
+diff --git a/README.md b/README.md
+index 52ae3af..54a7d24 100644
+--- a/README.md
++++ b/README.md
+@@ -20,6 +20,16 @@
+ - `lib/topics.js` — список тем (правь под себя).
+ - `app/privacy/page.js` — страница-заглушка политики ПДн (см. примечание ниже).
+ 
++## Проверка номера по звонку (sms.ru)
++
++Перед созданием записи номер подтверждается звонком через sms.ru (callcheck):
++
++1. `POST /api/verify/start` — сервер просит sms.ru выдать номер, на который должен позвонить пользователь; в Redis сохраняется `vfy:<token>` (TTL 10 мин), лимиты: 3 проверки/час на номер и 30/час на IP.
++2. Фронт показывает номер и каждые 3 с опрашивает `GET /api/verify/status`; сервер спрашивает sms.ru и ставит статус `confirmed` (код 401).
++3. `POST /api/register` принимает `verifyToken`, проверяет, что он подтверждён и относится к тому же номеру, и удаляет его (токен одноразовый).
++
++Переменные: `SMSRU_API_ID` (обязательно), `CALLCHECK_MOCK=1` (только dev, без звонков в sms.ru). Баланс sms.ru должен быть пополнен.
++
+ ## Деплой на Vercel через свой GitHub
+ 
+ ### 1. Публикуем код в свой репозиторий
+diff --git a/app/api/register/route.js b/app/api/register/route.js
+index c819d69..6bc812f 100644
+--- a/app/api/register/route.js
++++ b/app/api/register/route.js
+@@ -4,6 +4,7 @@ import { redis } from '@/lib/redis';
+ import { nextMskMidnightMs, ttlSecondsUntilMskMidnight } from '@/lib/time';
+ import { isValidRuPhone } from '@/lib/phone';
+ import { AGE_GROUPS } from '@/lib/ageGroups';
++import { toSmsRuPhone } from '@/lib/smsru';
+ 
+ export const dynamic = 'force-dynamic';
+ 
+@@ -15,7 +16,7 @@ export async function POST(req) {
+     return NextResponse.json({ error: 'bad_json' }, { status: 400 });
+   }
+ 
+-  const { id: clientId, name, phone, topics, ageGroup, consent } = body || {};
++  const { id: clientId, name, phone, topics, ageGroup, consent, verifyToken } = body || {};
+ 
+   if (
+     typeof name !== 'string' ||
+@@ -31,6 +32,18 @@ export async function POST(req) {
+     return NextResponse.json({ error: 'invalid_data' }, { status: 400 });
+   }
+ 
++  // Номер должен быть подтверждён звонком (см. /api/verify/*).
++  if (typeof verifyToken !== 'string' || !verifyToken) {
++    return NextResponse.json({ error: 'phone_not_verified' }, { status: 403 });
++  }
++  const rawVerify = await redis.get(`vfy:${verifyToken}`);
++  const verify = rawVerify && (typeof rawVerify === 'string' ? JSON.parse(rawVerify) : rawVerify);
++  if (!verify || verify.status !== 'confirmed' || verify.phone !== toSmsRuPhone(phone)) {
++    return NextResponse.json({ error: 'phone_not_verified' }, { status: 403 });
++  }
++  // токен одноразовый
++  await redis.del(`vfy:${verifyToken}`);
++
+   const id = clientId || randomUUID();
+   const expiresAt = nextMskMidnightMs();
+   const ttl = ttlSecondsUntilMskMidnight();
+diff --git a/app/api/verify/start/route.js b/app/api/verify/start/route.js
+new file mode 100644
+index 0000000..013a1d6
+--- /dev/null
++++ b/app/api/verify/start/route.js
+@@ -0,0 +1,58 @@
++import { NextResponse } from 'next/server';
++import { randomUUID } from 'crypto';
++import { redis } from '@/lib/redis';
++import { isValidRuPhone } from '@/lib/phone';
++import { startCallCheck, toSmsRuPhone } from '@/lib/smsru';
++import { allow, clientIp } from '@/lib/ratelimit';
++
++export const dynamic = 'force-dynamic';
++
++const VERIFY_TTL_SEC = 600; // sms.ru даёт 5 минут на звонок, держим запас
++
++export async function POST(req) {
++  let body;
++  try {
++    body = await req.json();
++  } catch {
++    return NextResponse.json({ error: 'bad_json' }, { status: 400 });
++  }
++
++  const { phone } = body || {};
++  if (typeof phone !== 'string' || !isValidRuPhone(phone)) {
++    return NextResponse.json({ error: 'invalid_phone' }, { status: 400 });
++  }
++
++  const digits = toSmsRuPhone(phone);
++  const ip = clientIp(req);
++
++  // Каждая проверка — платный запрос к sms.ru, поэтому лимитируем.
++  // За IP лимит выше: в зале ожидания у многих общий NAT/Wi-Fi.
++  const okPhone = await allow(`vfy:phone:${digits}`, 3, 3600);
++  const okIp = !ip || (await allow(`vfy:ip:${ip}`, 30, 3600));
++  if (!okPhone || !okIp) {
++    return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
++  }
++
++  let check;
++  try {
++    check = await startCallCheck(phone, ip);
++  } catch (e) {
++    console.error('[verify/start]', e.message);
++    if (e.code === 202) return NextResponse.json({ error: 'invalid_phone' }, { status: 400 });
++    return NextResponse.json({ error: 'provider_error' }, { status: 502 });
++  }
++
++  const token = randomUUID();
++  await redis.set(
++    `vfy:${token}`,
++    { phone: digits, checkId: check.checkId, status: 'pending' },
++    { ex: VERIFY_TTL_SEC }
++  );
++
++  return NextResponse.json({
++    token,
++    callPhone: check.callPhone,
++    callPhonePretty: check.callPhonePretty,
++    expiresInSec: 300,
++  });
++}
+diff --git a/app/api/verify/status/route.js b/app/api/verify/status/route.js
+new file mode 100644
+index 0000000..8318bae
+--- /dev/null
++++ b/app/api/verify/status/route.js
+@@ -0,0 +1,41 @@
++import { NextResponse } from 'next/server';
++import { redis } from '@/lib/redis';
++import {
++  getCallCheckStatus,
++  CHECK_CONFIRMED,
++  CHECK_EXPIRED,
++} from '@/lib/smsru';
++
++export const dynamic = 'force-dynamic';
++
++export async function GET(req) {
++  const { searchParams } = new URL(req.url);
++  const token = searchParams.get('token');
++  if (!token) return NextResponse.json({ error: 'no_token' }, { status: 400 });
++
++  const raw = await redis.get(`vfy:${token}`);
++  if (!raw) return NextResponse.json({ status: 'expired' });
++  const rec = typeof raw === 'string' ? JSON.parse(raw) : raw;
++
++  if (rec.status === 'confirmed') return NextResponse.json({ status: 'confirmed' });
++
++  let code;
++  try {
++    code = await getCallCheckStatus(rec.checkId);
++  } catch (e) {
++    console.error('[verify/status]', e.message);
++    // временный сбой провайдера — клиент просто опросит ещё раз
++    return NextResponse.json({ status: 'pending' });
++  }
++
++  if (code === CHECK_CONFIRMED) {
++    rec.status = 'confirmed';
++    await redis.set(`vfy:${token}`, rec, { ex: 600 });
++    return NextResponse.json({ status: 'confirmed' });
++  }
++  if (code === CHECK_EXPIRED) {
++    await redis.del(`vfy:${token}`);
++    return NextResponse.json({ status: 'expired' });
++  }
++  return NextResponse.json({ status: 'pending' });
++}
+diff --git a/components/RegisterForm.jsx b/components/RegisterForm.jsx
+index bea05a6..097b7c8 100644
+--- a/components/RegisterForm.jsx
++++ b/components/RegisterForm.jsx
+@@ -1,6 +1,6 @@
+ 'use client';
+ 
+-import { useState } from 'react';
++import { useEffect, useRef, useState } from 'react';
+ import { TOPICS } from '@/lib/topics';
+ import { AGE_GROUPS } from '@/lib/ageGroups';
+ import { normalizePhoneInput, isValidRuPhone } from '@/lib/phone';
+@@ -13,6 +13,10 @@ export default function RegisterForm({ onRegistered }) {
+   const [consent, setConsent] = useState(false);
+   const [error, setError] = useState('');
+   const [loading, setLoading] = useState(false);
++  const [step, setStep] = useState('form'); // 'form' | 'call'
++  const [verify, setVerify] = useState(null); // {token, callPhone, callPhonePretty}
++  const [secondsLeft, setSecondsLeft] = useState(300);
++  const finishing = useRef(false);
+ 
+   function toggleTopic(t) {
+     setTopics((prev) =>
+@@ -25,6 +29,7 @@ export default function RegisterForm({ onRegistered }) {
+     setPhone((prev) => normalizePhoneInput(prev, raw));
+   }
+ 
++  // Шаг 1: валидируем форму и просим sms.ru выдать номер, на который надо позвонить
+   async function handleSubmit(e) {
+     e.preventDefault();
+     setError('');
+@@ -36,25 +41,123 @@ export default function RegisterForm({ onRegistered }) {
+     if (!consent) return setError('Нужно согласие на обработку персональных данных');
+ 
+     setLoading(true);
++    try {
++      const res = await fetch('/api/verify/start', {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({ phone }),
++      });
++      const data = await res.json();
++      if (res.status === 429) {
++        setError('Слишком много попыток. Попробуйте позже.');
++        return;
++      }
++      if (!res.ok) {
++        setError(
++          data.error === 'invalid_phone'
++            ? 'Проверьте номер телефона'
++            : 'Не удалось запустить проверку номера, попробуйте ещё раз'
++        );
++        return;
++      }
++      finishing.current = false;
++      setSecondsLeft(data.expiresInSec || 300);
++      setVerify(data);
++      setStep('call');
++    } catch {
++      setError('Ошибка сети, попробуйте ещё раз');
++    } finally {
++      setLoading(false);
++    }
++  }
++
++  // Шаг 2: номер подтверждён звонком — создаём запись
++  async function finishRegistration(token) {
++    if (finishing.current) return;
++    finishing.current = true;
+     try {
+       const res = await fetch('/api/register', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+-        body: JSON.stringify({ name, phone, topics, ageGroup, consent }),
++        body: JSON.stringify({ name, phone, topics, ageGroup, consent, verifyToken: token }),
+       });
+       const data = await res.json();
+       if (!res.ok) {
+         setError('Не удалось начать поиск, попробуйте ещё раз');
++        setStep('form');
+         return;
+       }
+       onRegistered({ id: data.id, name: name.trim(), phone: phone.trim(), topics, ageGroup });
+     } catch {
+       setError('Ошибка сети, попробуйте ещё раз');
+-    } finally {
+-      setLoading(false);
++      setStep('form');
+     }
+   }
+ 
++  // Пока открыт экран со звонком — опрашиваем статус и ведём обратный отсчёт
++  useEffect(() => {
++    if (step !== 'call' || !verify) return;
++
++    const poll = setInterval(async () => {
++      try {
++        const res = await fetch(`/api/verify/status?token=${encodeURIComponent(verify.token)}`);
++        const data = await res.json();
++        if (data.status === 'confirmed') {
++          clearInterval(poll);
++          finishRegistration(verify.token);
++        } else if (data.status === 'expired') {
++          clearInterval(poll);
++          setError('Время на звонок истекло. Попробуйте ещё раз.');
++          setStep('form');
++        }
++      } catch {
++        // временная ошибка сети — следующий опрос повторит
++      }
++    }, 3000);
++
++    const tick = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000);
++
++    return () => {
++      clearInterval(poll);
++      clearInterval(tick);
++    };
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [step, verify]);
++
++  if (step === 'call' && verify) {
++    const mm = String(Math.floor(secondsLeft / 60)).padStart(1, '0');
++    const ss = String(secondsLeft % 60).padStart(2, '0');
++    return (
++      <div className="p-5 flex flex-col gap-4">
++        <h1 className="text-lg font-semibold">Подтвердите номер</h1>
++        <p className="text-sm text-slate-600">
++          Позвоните <b>со своего номера {phone}</b> на номер ниже. Звонок бесплатный — он
++          сбросится сам, ничего говорить не нужно.
++        </p>
++        <a
++          href={`tel:+${verify.callPhone}`}
++          className="block text-center text-2xl font-mono py-4 rounded-xl bg-slate-900 text-white"
++        >
++          {verify.callPhonePretty}
++        </a>
++        <p className="text-sm text-slate-500 text-center">
++          Ждём звонок… осталось {mm}:{ss}
++        </p>
++        {error && <p className="text-sm text-red-600">{error}</p>}
++        <button
++          type="button"
++          onClick={() => {
++            setStep('form');
++            setVerify(null);
++          }}
++          className="text-sm text-slate-500 underline"
++        >
++          Изменить номер
++        </button>
++      </div>
++    );
++  }
++
+   return (
+     <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
+       <h1 className="text-lg font-semibold">Найти собеседника</h1>
+@@ -156,7 +259,7 @@ export default function RegisterForm({ onRegistered }) {
+         disabled={loading}
+         className="mt-2 bg-slate-900 text-white rounded-lg py-3 text-base font-medium disabled:opacity-50"
+       >
+-        {loading ? 'Ищем...' : 'Начать поиск собеседников'}
++        {loading ? 'Подождите...' : 'Подтвердить номер и начать поиск'}
+       </button>
+     </form>
+   );
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 4a046c0..83c9601 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -6,6 +6,7 @@ services:
+       TZ: Europe/Moscow
+       UPSTASH_REDIS_REST_URL: http://redis-srh:80
+       UPSTASH_REDIS_REST_TOKEN: ${SRH_TOKEN}
++      SMSRU_API_ID: ${SMSRU_API_ID}
+     networks: [passenger_net]
+     # публичных портов нет — доступ только изнутри passenger_net (через nginx opros)
+ 
+diff --git a/lib/ratelimit.js b/lib/ratelimit.js
+new file mode 100644
+index 0000000..ad02c64
+--- /dev/null
++++ b/lib/ratelimit.js
+@@ -0,0 +1,17 @@
++import { redis } from '@/lib/redis';
++
++/**
++ * Простой счётчик "не более max событий за windowSec секунд" по ключу.
++ * Возвращает true, если лимит ещё не превышен.
++ */
++export async function allow(key, max, windowSec) {
++  const n = await redis.incr(`rl:${key}`);
++  if (n === 1) await redis.expire(`rl:${key}`, windowSec);
++  return n <= max;
++}
++
++export function clientIp(req) {
++  const xff = req.headers.get('x-forwarded-for');
++  if (xff) return xff.split(',')[0].trim();
++  return req.headers.get('x-real-ip') || '';
++}
+diff --git a/lib/smsru.js b/lib/smsru.js
+new file mode 100644
+index 0000000..241397e
+--- /dev/null
++++ b/lib/smsru.js
+@@ -0,0 +1,82 @@
++// Клиент sms.ru для авторизации по звонку (callcheck).
++// Документация: https://sms.ru/callcheck
++// Ключ SMSRU_API_ID берётся ТОЛЬКО из переменных окружения сервера.
++
++const BASE = 'https://sms.ru/callcheck';
++
++// Статусы проверки (check_status)
++export const CHECK_PENDING = 400; // звонка ещё не было
++export const CHECK_CONFIRMED = 401; // номер подтверждён
++export const CHECK_EXPIRED = 402; // время вышло / неверный check_id
++
++function mockEnabled() {
++  return process.env.CALLCHECK_MOCK === '1' && process.env.NODE_ENV !== 'production';
++}
++
++// "+7 (900) 123-45-67" -> "79001234567"
++export function toSmsRuPhone(value) {
++  return String(value || '').replace(/\D/g, '');
++}
++
++async function call(path, params) {
++  const apiId = process.env.SMSRU_API_ID;
++  if (!apiId) throw new Error('SMSRU_API_ID не задан');
++
++  const qs = new URLSearchParams({ api_id: apiId, json: '1', ...params });
++  // POST, чтобы api_id не попадал в URL-логи прокси
++  const res = await fetch(`${BASE}/${path}`, {
++    method: 'POST',
++    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
++    body: qs.toString(),
++    signal: AbortSignal.timeout(10_000),
++    cache: 'no-store',
++  });
++  if (!res.ok) throw new Error(`sms.ru HTTP ${res.status}`);
++  return res.json();
++}
++
++/**
++ * Запускает проверку. Возвращает { checkId, callPhone, callPhonePretty }.
++ * Бросает Error, если sms.ru вернул не 100.
++ */
++export async function startCallCheck(phone, ip) {
++  if (mockEnabled()) {
++    return {
++      checkId: `mock-${Date.now()}`,
++      callPhone: '78005550000',
++      callPhonePretty: '+7 (800) 555-00-00',
++    };
++  }
++  const params = { phone: toSmsRuPhone(phone) };
++  if (ip) params.ip = ip;
++
++  const data = await call('add', params);
++  if (data.status !== 'OK' || Number(data.status_code) !== 100) {
++    const err = new Error(`sms.ru add: ${data.status_code} ${data.status_text || ''}`);
++    err.code = Number(data.status_code);
++    throw err;
++  }
++  return {
++    checkId: data.check_id,
++    callPhone: data.call_phone,
++    callPhonePretty: data.call_phone_pretty,
++  };
++}
++
++/**
++ * Возвращает числовой статус: 400 / 401 / 402.
++ */
++export async function getCallCheckStatus(checkId) {
++  if (mockEnabled()) {
++    // в dev-режиме подтверждаем через 6 секунд после старта
++    const t = Number(String(checkId).split('-')[1]) || 0;
++    return Date.now() - t > 6000 ? CHECK_CONFIRMED : CHECK_PENDING;
++  }
++  const data = await call('status', { check_id: checkId });
++  if (data.status !== 'OK') {
++    const err = new Error(`sms.ru status: ${data.status_code} ${data.status_text || ''}`);
++    err.code = Number(data.status_code);
++    throw err;
++  }
++  return Number(data.check_status);
++}

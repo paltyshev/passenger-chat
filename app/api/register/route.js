@@ -4,6 +4,7 @@ import { redis } from '@/lib/redis';
 import { nextMskMidnightMs, ttlSecondsUntilMskMidnight } from '@/lib/time';
 import { isValidRuPhone } from '@/lib/phone';
 import { AGE_GROUPS } from '@/lib/ageGroups';
+import { toSmsRuPhone } from '@/lib/smsru';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,7 @@ export async function POST(req) {
     return NextResponse.json({ error: 'bad_json' }, { status: 400 });
   }
 
-  const { id: clientId, name, phone, topics, ageGroup, consent } = body || {};
+  const { id: clientId, name, phone, topics, ageGroup, consent, verifyToken } = body || {};
 
   if (
     typeof name !== 'string' ||
@@ -30,6 +31,18 @@ export async function POST(req) {
   ) {
     return NextResponse.json({ error: 'invalid_data' }, { status: 400 });
   }
+
+  // Номер должен быть подтверждён звонком (см. /api/verify/*).
+  if (typeof verifyToken !== 'string' || !verifyToken) {
+    return NextResponse.json({ error: 'phone_not_verified' }, { status: 403 });
+  }
+  const rawVerify = await redis.get(`vfy:${verifyToken}`);
+  const verify = rawVerify && (typeof rawVerify === 'string' ? JSON.parse(rawVerify) : rawVerify);
+  if (!verify || verify.status !== 'confirmed' || verify.phone !== toSmsRuPhone(phone)) {
+    return NextResponse.json({ error: 'phone_not_verified' }, { status: 403 });
+  }
+  // токен одноразовый
+  await redis.del(`vfy:${verifyToken}`);
 
   const id = clientId || randomUUID();
   const expiresAt = nextMskMidnightMs();
