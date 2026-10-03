@@ -26,7 +26,7 @@ export const viewport = {
 // Если выбора нет — работает системная тема через prefers-color-scheme.
 const THEME_INIT = `try{var t=localStorage.getItem('pc_theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}`;
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children, modal }) {
   return (
     <html lang="ru" suppressHydrationWarning>
       <head>
@@ -36,6 +36,7 @@ export default function RootLayout({ children }) {
         <div className="mx-auto min-h-screen max-w-md bg-surface shadow-sm sm:border-x sm:border-line">
           {children}
         </div>
+        {modal}
       </body>
     </html>
   );

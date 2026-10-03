@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { TOPICS } from '@/lib/topics';
 import { AGE_GROUPS } from '@/lib/ageGroups';
 import { normalizePhoneInput, isValidRuPhone } from '@/lib/phone';
@@ -251,14 +252,13 @@ export default function RegisterForm({ onRegistered }) {
           />
           <span>
             Даю{' '}
-            <a
+            <Link
               href="/consent"
-              target="_blank"
-              rel="noopener"
+              scroll={false}
               className="text-link underline underline-offset-2"
             >
               согласие на обработку персональных данных
-            </a>
+            </Link>
             : имя, телефон, возраст и темы показываются другим пользователям; номер и IP-адрес
             передаются в ООО «СМС.РУ» (sms.ru) для проверки номера звонком. Данные удаляются в
             00:00 по Москве.
@@ -280,14 +280,13 @@ export default function RegisterForm({ onRegistered }) {
             {loading ? 'Подождите...' : 'Подтвердить номер и начать поиск'}
           </button>
           <p className="text-center text-xs text-subtle">
-            <a
+            <Link
               href="/privacy"
-              target="_blank"
-              rel="noopener"
+              scroll={false}
               className="text-link underline underline-offset-2"
             >
               Политика обработки персональных данных
-            </a>
+            </Link>
           </p>
         </div>
       </div>

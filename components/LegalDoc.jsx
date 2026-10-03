@@ -1,10 +1,22 @@
 import Link from 'next/link';
 
-export function LegalDoc({ title, children }) {
+export function LegalDoc({ title, children, embedded = false }) {
+  const body = 'p-5 pb-12 text-sm leading-relaxed text-fg [&_a]:text-link [&_a]:underline-offset-2';
+
+  // В модальном окне (перехваченный маршрут): без шапки и ссылки «назад» — закрытие делает LegalModal
+  if (embedded) {
+    return (
+      <div className={body}>
+        <h1 className="mb-2 text-lg font-semibold">{title}</h1>
+        {children}
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="h-1 bg-gradient-to-r from-brand to-accent" aria-hidden="true" />
-      <main className="p-5 pb-12 text-sm leading-relaxed text-fg [&_a]:text-link [&_a]:underline-offset-2">
+      <main className={body}>
         <Link href="/" className="text-xs text-link underline underline-offset-2">
           ← К сервису
         </Link>
