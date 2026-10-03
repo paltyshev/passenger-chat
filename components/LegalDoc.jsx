@@ -2,13 +2,16 @@ import Link from 'next/link';
 
 export function LegalDoc({ title, children }) {
   return (
-    <main className="p-5 pb-12 text-sm leading-relaxed text-slate-800">
-      <Link href="/" className="text-xs text-slate-500 underline">
-        ← К сервису
-      </Link>
-      <h1 className="text-lg font-semibold mt-3 mb-2">{title}</h1>
-      {children}
-    </main>
+    <>
+      <div className="h-1 bg-gradient-to-r from-brand to-accent" aria-hidden="true" />
+      <main className="p-5 pb-12 text-sm leading-relaxed text-fg [&_a]:text-link [&_a]:underline-offset-2">
+        <Link href="/" className="text-xs text-link underline underline-offset-2">
+          ← К сервису
+        </Link>
+        <h1 className="mb-2 mt-3 text-lg font-semibold">{title}</h1>
+        {children}
+      </main>
+    </>
   );
 }
 
@@ -25,7 +28,7 @@ export function Sec({ title, children }) {
 export function P({ n, children }) {
   return (
     <p>
-      {n && <span className="text-slate-500">{n} </span>}
+      {n && <span className="text-subtle">{n} </span>}
       {children}
     </p>
   );
@@ -53,11 +56,11 @@ export function Ul({ items }) {
 export function Table({ head, rows }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border border-slate-300 text-left align-top">
-        <thead className="bg-slate-100">
+      <table className="w-full border border-line text-left align-top">
+        <thead className="bg-surface2">
           <tr>
             {head.map((h) => (
-              <th key={h} className="border border-slate-300 p-2 font-semibold">
+              <th key={h} className="border border-line p-2 font-semibold">
                 {h}
               </th>
             ))}
@@ -67,7 +70,7 @@ export function Table({ head, rows }) {
           {rows.map((r, i) => (
             <tr key={i}>
               {r.map((c, j) => (
-                <td key={j} className="border border-slate-300 p-2 align-top">
+                <td key={j} className="border border-line p-2 align-top">
                   {Array.isArray(c) ? <Ul items={c} /> : c}
                 </td>
               ))}

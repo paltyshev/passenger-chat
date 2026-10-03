@@ -1,0 +1,1175 @@
+diff --git a/app/consent/page.js b/app/consent/page.js
+index 7fd6d53..574cd6c 100644
+--- a/app/consent/page.js
++++ b/app/consent/page.js
+@@ -18,7 +18,7 @@ export const metadata = {
+ export default function ConsentPage() {
+   return (
+     <LegalDoc title="Согласие на обработку персональных данных для организации общения между пользователями сервиса «Ковер-самолет»">
+-      <p className="text-xs text-slate-500">Редакция {CONSENT_VERSION}</p>
++      <p className="text-xs text-subtle">Редакция {CONSENT_VERSION}</p>
+ 
+       <p className="mt-4">
+         Я, указавший в форме регистрации на сервисе {SERVICE_URL} своё имя и номер телефона, свободно, своей волей и в
+@@ -115,7 +115,7 @@ export default function ConsentPage() {
+           Согласие даётся в электронной форме: проставлением отметки в поле согласия в форме регистрации на сервисе
+           {' '}{SERVICE_URL} и нажатием кнопки продолжения.
+         </p>
+-        <p className="text-slate-500">
++        <p className="text-subtle">
+           Порядок обработки персональных данных Оператором описан в{' '}
+           <a href="/privacy" className="underline">
+             Политике обработки персональных данных
+diff --git a/app/globals.css b/app/globals.css
+index 565af7f..f3d9f38 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -2,6 +2,164 @@
+ @tailwind components;
+ @tailwind utilities;
+ 
+-html, body {
++/* ------------------------------------------------------------------
++   Дизайн-токены. Фирменные цвета аэропорта Геленджик:
++   синий #1B65A6 (27 101 166) и бирюзовый #009899 (0 152 153).
++   Значения — «R G B» без запятых, чтобы работали модификаторы /30 и т.п.
++   Тема: по умолчанию следует системной (prefers-color-scheme),
++   ручной выбор пишет data-theme="light|dark" на <html>.
++   ------------------------------------------------------------------ */
++:root {
++  color-scheme: light;
++  --c-canvas: 233 240 247;
++  --c-surface: 255 255 255;
++  --c-surface2: 238 244 250;
++  --c-line: 208 220 232;
++  --c-fg: 15 34 51;
++  --c-muted: 74 93 112;
++  --c-subtle: 95 113 132;
++  --c-link: 27 101 166;
++  --c-brand: 27 101 166;
++  --c-brand-fg: 255 255 255;
++  --c-accent: 0 152 153;
++  --c-accent-strong: 0 121 122;
++  --c-danger: 180 35 24;
++  --c-danger-bg: 253 236 234;
++  --c-danger-line: 240 169 163;
++  --c-ad-bg: 230 245 245;
++  --c-ad-line: 191 227 227;
++  --c-ad-fg: 0 89 90;
++  --c-ad-muted: 0 106 107;
++}
++
++@media (prefers-color-scheme: dark) {
++  :root:not([data-theme='light']) {
++    color-scheme: dark;
++    --c-canvas: 8 15 22;
++    --c-surface: 18 30 43;
++    --c-surface2: 27 42 59;
++    --c-line: 42 60 80;
++    --c-fg: 232 238 244;
++    --c-muted: 169 183 198;
++    --c-subtle: 125 141 160;
++    --c-link: 125 184 238;
++    --c-brand: 27 101 166;
++    --c-brand-fg: 255 255 255;
++    --c-accent: 0 152 153;
++    --c-accent-strong: 0 128 129;
++    --c-danger: 255 138 128;
++    --c-danger-bg: 45 22 24;
++    --c-danger-line: 122 46 42;
++    --c-ad-bg: 15 42 46;
++    --c-ad-line: 27 74 78;
++    --c-ad-fg: 142 227 227;
++    --c-ad-muted: 100 200 201;
++  }
++}
++
++:root[data-theme='dark'] {
++  color-scheme: dark;
++  --c-canvas: 8 15 22;
++  --c-surface: 18 30 43;
++  --c-surface2: 27 42 59;
++  --c-line: 42 60 80;
++  --c-fg: 232 238 244;
++  --c-muted: 169 183 198;
++  --c-subtle: 125 141 160;
++  --c-link: 125 184 238;
++  --c-brand: 27 101 166;
++  --c-brand-fg: 255 255 255;
++  --c-accent: 0 152 153;
++  --c-accent-strong: 0 128 129;
++  --c-danger: 255 138 128;
++  --c-danger-bg: 45 22 24;
++  --c-danger-line: 122 46 42;
++  --c-ad-bg: 15 42 46;
++  --c-ad-line: 27 74 78;
++  --c-ad-fg: 142 227 227;
++  --c-ad-muted: 100 200 201;
++}
++
++html,
++body {
+   -webkit-tap-highlight-color: transparent;
+ }
++
++body {
++  @apply bg-canvas text-fg antialiased;
++}
++
++:focus-visible {
++  outline: 2px solid rgb(var(--c-accent));
++  outline-offset: 2px;
++}
++
++::selection {
++  background: rgb(var(--c-accent) / 0.3);
++}
++
++.no-scrollbar {
++  scrollbar-width: none;
++}
++.no-scrollbar::-webkit-scrollbar {
++  display: none;
++}
++
++@media (prefers-reduced-motion: reduce) {
++  *,
++  *::before,
++  *::after {
++    animation-duration: 0.01ms !important;
++    transition-duration: 0.01ms !important;
++  }
++}
++
++@layer components {
++  /* Поля ввода */
++  .field {
++    @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base text-fg
++      placeholder:text-subtle transition-colors
++      focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30;
++  }
++
++  /* Чипы тем и возраста; состояние «выбрано» — через aria-pressed */
++  .chip {
++    @apply inline-flex shrink-0 items-center rounded-full border border-line bg-surface
++      px-3.5 py-2 text-sm text-fg transition-colors hover:border-brand/60 active:bg-surface2;
++  }
++  .chip[aria-pressed='true'] {
++    @apply border-brand bg-brand text-brand-fg;
++  }
++  .chip-age {
++    @apply px-3 py-1.5 text-xs text-muted;
++  }
++  .chip-age[aria-pressed='true'] {
++    @apply border-accent-strong bg-accent-strong text-brand-fg;
++  }
++
++  /* Кнопки */
++  .btn {
++    @apply inline-flex min-h-[44px] w-full items-center justify-center rounded-xl px-4 text-sm
++      font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
++  }
++  .btn-primary {
++    @apply bg-brand text-brand-fg hover:bg-brand/90 active:bg-brand/80;
++  }
++  .btn-outline {
++    @apply border border-line bg-surface text-fg hover:bg-surface2;
++  }
++  .btn-outline-brand {
++    @apply border border-brand/60 bg-surface text-link hover:bg-brand/10;
++  }
++  .btn-danger {
++    @apply border border-danger-line bg-surface text-danger hover:bg-danger-bg;
++  }
++
++  .alert-error {
++    @apply rounded-xl border border-danger-line bg-danger-bg px-3.5 py-2.5 text-sm text-danger;
++  }
++
++  .spinner {
++    @apply h-6 w-6 animate-spin rounded-full border-2 border-line border-t-brand;
++  }
++}
+diff --git a/app/layout.js b/app/layout.js
+index a1c7456..d285b0c 100644
+--- a/app/layout.js
++++ b/app/layout.js
+@@ -16,13 +16,24 @@ export const viewport = {
+   width: 'device-width',
+   initialScale: 1,
+   maximumScale: 1,
++  themeColor: [
++    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
++    { media: '(prefers-color-scheme: dark)', color: '#121e2b' },
++  ],
+ };
+ 
++// Применяет сохранённый ручной выбор темы до первой отрисовки (без вспышки).
++// Если выбора нет — работает системная тема через prefers-color-scheme.
++const THEME_INIT = `try{var t=localStorage.getItem('pc_theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}`;
++
+ export default function RootLayout({ children }) {
+   return (
+-    <html lang="ru">
+-      <body className="bg-slate-50 min-h-screen text-slate-900">
+-        <div className="mx-auto max-w-md min-h-screen bg-white shadow-sm">
++    <html lang="ru" suppressHydrationWarning>
++      <head>
++        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
++      </head>
++      <body className="min-h-screen">
++        <div className="mx-auto min-h-screen max-w-md bg-surface shadow-sm sm:border-x sm:border-line">
+           {children}
+         </div>
+       </body>
+diff --git a/app/page.js b/app/page.js
+index fe55ebc..cde0c05 100644
+--- a/app/page.js
++++ b/app/page.js
+@@ -80,7 +80,9 @@ export default function HomePage() {
+ 
+   if (checking) {
+     return (
+-      <div className="p-6 text-sm text-slate-400">Загрузка...</div>
++      <div className="grid min-h-[100dvh] place-items-center" role="status" aria-label="Загрузка">
++        <span className="spinner" />
++      </div>
+     );
+   }
+ 
+diff --git a/components/AppHeader.jsx b/components/AppHeader.jsx
+new file mode 100644
+index 0000000..5115706
+--- /dev/null
++++ b/components/AppHeader.jsx
+@@ -0,0 +1,25 @@
++import ThemeToggle from './ThemeToggle';
++
++// Общая шапка: фирменная полоса, значок, заголовок и переключатель темы справа.
++export default function AppHeader({ title, subtitle }) {
++  return (
++    <header>
++      <div className="h-1 bg-gradient-to-r from-brand to-accent" aria-hidden="true" />
++      <div className="flex items-center gap-3 px-4 py-3">
++        <span
++          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand to-accent text-white shadow-sm"
++          aria-hidden="true"
++        >
++          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
++            <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" />
++          </svg>
++        </span>
++        <div className="min-w-0 flex-1">
++          <h1 className="truncate text-lg font-semibold leading-tight">{title}</h1>
++          {subtitle && <p className="truncate text-sm text-muted">{subtitle}</p>}
++        </div>
++        <ThemeToggle />
++      </div>
++    </header>
++  );
++}
+diff --git a/components/BusinessLoungeAd.jsx b/components/BusinessLoungeAd.jsx
+index 068434d..6865a40 100644
+--- a/components/BusinessLoungeAd.jsx
++++ b/components/BusinessLoungeAd.jsx
+@@ -4,22 +4,20 @@ export default function BusinessLoungeAd() {
+       href="https://gelaero.ru/services/business-lounge/"
+       target="_blank"
+       rel="noopener noreferrer sponsored"
+-      className="flex items-center gap-3 px-4 py-2.5 bg-amber-50 border-b border-amber-100 active:bg-amber-100"
++      className="flex items-center gap-3 border-b border-ad-line bg-ad-bg px-4 py-2.5 transition-opacity active:opacity-80"
+     >
+       <span className="text-xl leading-none shrink-0" aria-hidden="true">
+         ✈️
+       </span>
+-      <span className="flex-1 min-w-0">
+-        <span className="block text-xs font-medium text-amber-900 truncate">
++      <span className="min-w-0 flex-1">
++        <span className="block truncate text-xs font-medium text-ad-fg">
+           Бизнес-зал аэропорта Геленджик
+         </span>
+-        <span className="block text-[11px] text-amber-700 truncate">
++        <span className="block truncate text-[11px] text-ad-muted">
+           Тишина и комфорт перед вылетом — подробнее об услуге
+         </span>
+       </span>
+-      <span className="text-[10px] uppercase tracking-wide text-amber-500 shrink-0">
+-        Реклама
+-      </span>
++      <span className="shrink-0 text-[10px] uppercase tracking-wide text-ad-muted">Реклама</span>
+     </a>
+   );
+ }
+diff --git a/components/ContactModal.jsx b/components/ContactModal.jsx
+index 88b037b..5dfa01c 100644
+--- a/components/ContactModal.jsx
++++ b/components/ContactModal.jsx
+@@ -1,34 +1,65 @@
+ 'use client';
+ 
++import { useEffect, useRef } from 'react';
++
++const STEPS = [
++  'Сохраните этот номер в контакты телефона.',
++  'Откройте MAX, Telegram или другой мессенджер — контакт появится там автоматически.',
++  'Напишите первым, представьтесь и укажите тему для разговора.',
++];
++
+ export default function ContactModal({ user, onClose }) {
++  const dialogRef = useRef(null);
++
++  useEffect(() => {
++    if (!user) return;
++    dialogRef.current?.focus();
++    const onKey = (e) => e.key === 'Escape' && onClose();
++    window.addEventListener('keydown', onKey);
++    return () => window.removeEventListener('keydown', onKey);
++  }, [user, onClose]);
++
+   if (!user) return null;
+ 
+   return (
+-    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50">
+-      <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5">
+-        <h2 className="text-lg font-semibold mb-1">{user.name}</h2>
++    <div
++      className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center"
++      onClick={onClose}
++    >
++      <div
++        ref={dialogRef}
++        role="dialog"
++        aria-modal="true"
++        aria-labelledby="contact-title"
++        tabIndex={-1}
++        onClick={(e) => e.stopPropagation()}
++        className="w-full animate-sheet-in rounded-t-3xl border-t border-line bg-surface p-5 shadow-2xl outline-none sm:max-w-sm sm:rounded-2xl sm:border"
++        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
++      >
++        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line sm:hidden" aria-hidden="true" />
++        <h2 id="contact-title" className="mb-2 text-lg font-semibold">
++          {user.name}
++        </h2>
+         <a
+           href={`tel:${user.phone.replace(/[^\d+]/g, '')}`}
+-          className="block text-2xl font-mono mb-4 text-slate-900 hover:text-slate-700 underline underline-offset-4"
++          className="mb-5 block rounded-xl border border-line bg-surface2 py-3 text-center font-mono text-2xl text-link transition-colors hover:border-brand/50"
+         >
+           {user.phone}
+         </a>
+ 
+-        <div className="text-sm text-slate-600 flex flex-col gap-2 mb-5">
+-          <p>Чтобы начать общение:</p>
+-          <ol className="list-decimal list-inside flex flex-col gap-1">
+-            <li>Сохраните этот номер в контакты телефона.</li>
+-            <li>
+-              Откройте MAX, Telegram или другой мессенджер — контакт появится там автоматически.
++        <p className="mb-3 text-sm font-medium text-muted">Чтобы начать общение:</p>
++        <ol className="mb-5 flex flex-col gap-3 text-sm">
++          {STEPS.map((text, i) => (
++            <li key={i} className="flex items-start gap-3">
++              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent-strong text-xs font-semibold text-white">
++                {i + 1}
++              </span>
++              <span className="pt-0.5 text-muted">{text}</span>
+             </li>
+-            <li>Напишите первым, представьтесь и укажите тему для разговора.</li>
+-          </ol>
+-        </div>
++          ))}
++        </ol>
+ 
+-        <button
+-          onClick={onClose}
+-          className="w-full bg-slate-900 text-white rounded-lg py-2.5 text-sm font-medium"
+-        >
++        <button type="button" onClick={onClose} className="btn btn-primary">
+           Закрыть
+         </button>
+       </div>
+diff --git a/components/EditTopicsModal.jsx b/components/EditTopicsModal.jsx
+index 10cd441..d3e5ac7 100644
+--- a/components/EditTopicsModal.jsx
++++ b/components/EditTopicsModal.jsx
+@@ -1,11 +1,19 @@
+ 'use client';
+ 
+-import { useState } from 'react';
++import { useEffect, useRef, useState } from 'react';
+ import { TOPICS } from '@/lib/topics';
+ 
+ export default function EditTopicsModal({ currentTopics, onSave, onClose }) {
+   const [topics, setTopics] = useState(currentTopics);
+   const [saving, setSaving] = useState(false);
++  const dialogRef = useRef(null);
++
++  useEffect(() => {
++    dialogRef.current?.focus();
++    const onKey = (e) => e.key === 'Escape' && onClose();
++    window.addEventListener('keydown', onKey);
++    return () => window.removeEventListener('keydown', onKey);
++  }, [onClose]);
+ 
+   function toggle(t) {
+     setTopics((prev) =>
+@@ -24,41 +32,50 @@ export default function EditTopicsModal({ currentTopics, onSave, onClose }) {
+   }
+ 
+   return (
+-    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50">
+-      <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-5">
+-        <h2 className="text-lg font-semibold mb-3">Изменить темы</h2>
+-        <div className="flex flex-wrap gap-2 mb-5">
+-          {TOPICS.map((t) => {
+-            const active = topics.includes(t);
+-            return (
+-              <button
+-                key={t}
+-                type="button"
+-                onClick={() => toggle(t)}
+-                className={
+-                  'px-3 py-1.5 rounded-full text-sm border ' +
+-                  (active
+-                    ? 'bg-slate-900 text-white border-slate-900'
+-                    : 'bg-white text-slate-700 border-slate-300')
+-                }
+-              >
+-                {t}
+-              </button>
+-            );
+-          })}
++    <div
++      className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center"
++      onClick={onClose}
++    >
++      <div
++        ref={dialogRef}
++        role="dialog"
++        aria-modal="true"
++        aria-labelledby="topics-title"
++        tabIndex={-1}
++        onClick={(e) => e.stopPropagation()}
++        className="w-full animate-sheet-in rounded-t-3xl border-t border-line bg-surface p-5 shadow-2xl outline-none sm:max-w-sm sm:rounded-2xl sm:border"
++        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
++      >
++        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line sm:hidden" aria-hidden="true" />
++        <h2 id="topics-title" className="mb-3 text-lg font-semibold">
++          Изменить темы
++        </h2>
++        <div className="mb-3 flex flex-wrap gap-2">
++          {TOPICS.map((t) => (
++            <button
++              key={t}
++              type="button"
++              onClick={() => toggle(t)}
++              aria-pressed={topics.includes(t)}
++              className="chip"
++            >
++              {t}
++            </button>
++          ))}
+         </div>
++        {topics.length === 0 && (
++          <p className="mb-3 text-xs text-danger">Выберите хотя бы одну тему.</p>
++        )}
+ 
+-        <div className="flex gap-2">
+-          <button
+-            onClick={onClose}
+-            className="flex-1 border border-slate-300 rounded-lg py-2.5 text-sm font-medium"
+-          >
++        <div className="mt-2 flex gap-2">
++          <button type="button" onClick={onClose} className="btn btn-outline">
+             Отмена
+           </button>
+           <button
++            type="button"
+             onClick={handleSave}
+             disabled={saving || topics.length === 0}
+-            className="flex-1 bg-slate-900 text-white rounded-lg py-2.5 text-sm font-medium disabled:opacity-50"
++            className="btn btn-primary"
+           >
+             {saving ? 'Сохраняем...' : 'Сохранить'}
+           </button>
+diff --git a/components/LegalDoc.jsx b/components/LegalDoc.jsx
+index 015eab9..3b1261c 100644
+--- a/components/LegalDoc.jsx
++++ b/components/LegalDoc.jsx
+@@ -2,13 +2,16 @@ import Link from 'next/link';
+ 
+ export function LegalDoc({ title, children }) {
+   return (
+-    <main className="p-5 pb-12 text-sm leading-relaxed text-slate-800">
+-      <Link href="/" className="text-xs text-slate-500 underline">
+-        ← К сервису
+-      </Link>
+-      <h1 className="text-lg font-semibold mt-3 mb-2">{title}</h1>
+-      {children}
+-    </main>
++    <>
++      <div className="h-1 bg-gradient-to-r from-brand to-accent" aria-hidden="true" />
++      <main className="p-5 pb-12 text-sm leading-relaxed text-fg [&_a]:text-link [&_a]:underline-offset-2">
++        <Link href="/" className="text-xs text-link underline underline-offset-2">
++          ← К сервису
++        </Link>
++        <h1 className="mb-2 mt-3 text-lg font-semibold">{title}</h1>
++        {children}
++      </main>
++    </>
+   );
+ }
+ 
+@@ -25,7 +28,7 @@ export function Sec({ title, children }) {
+ export function P({ n, children }) {
+   return (
+     <p>
+-      {n && <span className="text-slate-500">{n} </span>}
++      {n && <span className="text-subtle">{n} </span>}
+       {children}
+     </p>
+   );
+@@ -53,11 +56,11 @@ export function Ul({ items }) {
+ export function Table({ head, rows }) {
+   return (
+     <div className="overflow-x-auto">
+-      <table className="w-full border border-slate-300 text-left align-top">
+-        <thead className="bg-slate-100">
++      <table className="w-full border border-line text-left align-top">
++        <thead className="bg-surface2">
+           <tr>
+             {head.map((h) => (
+-              <th key={h} className="border border-slate-300 p-2 font-semibold">
++              <th key={h} className="border border-line p-2 font-semibold">
+                 {h}
+               </th>
+             ))}
+@@ -67,7 +70,7 @@ export function Table({ head, rows }) {
+           {rows.map((r, i) => (
+             <tr key={i}>
+               {r.map((c, j) => (
+-                <td key={j} className="border border-slate-300 p-2 align-top">
++                <td key={j} className="border border-line p-2 align-top">
+                   {Array.isArray(c) ? <Ul items={c} /> : c}
+                 </td>
+               ))}
+diff --git a/components/PeopleList.jsx b/components/PeopleList.jsx
+index bfecd8a..8d3bff6 100644
+--- a/components/PeopleList.jsx
++++ b/components/PeopleList.jsx
+@@ -2,11 +2,12 @@
+ 
+ import { useEffect, useState, useCallback } from 'react';
+ import { AGE_GROUPS } from '@/lib/ageGroups';
++import AppHeader from './AppHeader';
+ import BusinessLoungeAd from './BusinessLoungeAd';
+ 
+-// Высота нижней несворачиваемой панели (реклама + кнопки).
++// Высота нижней несворачиваемой панели (реклама + кнопки) с небольшим запасом.
+ // Используется как отступ снизу у списка, чтобы контент не прятался под панель.
+-const BOTTOM_BAR_RESERVED_PX = 176;
++const BOTTOM_BAR_RESERVED_PX = 152;
+ 
+ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+   const [activeTopic, setActiveTopic] = useState('Все');
+@@ -41,42 +42,33 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+   }, [load]);
+ 
+   return (
+-    <div className="min-h-[100dvh] flex flex-col">
++    <div className="flex min-h-[100dvh] flex-col">
+       {/* Шапка + фильтры — единый sticky-блок сверху */}
+-      <div className="sticky top-0 z-10 bg-white border-b shrink-0">
+-        <div className="px-4 pt-4 pb-1">
+-          <h1 className="text-lg font-semibold mb-1">Собеседники рядом</h1>
+-          <p className="text-sm text-slate-500">Вы: {me.name}</p>
+-        </div>
++      <div className="sticky top-0 z-10 shrink-0 border-b border-line bg-surface/95 backdrop-blur">
++        <AppHeader title="Собеседники рядом" subtitle={`Вы: ${me.name}`} />
+ 
+-        <div className="flex gap-2 overflow-x-auto px-4 py-2">
++        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-2">
+           {topicTabs.map((t) => (
+             <button
+               key={t}
++              type="button"
+               onClick={() => setActiveTopic(t)}
+-              className={
+-                'shrink-0 px-3 py-1.5 rounded-full text-sm border ' +
+-                (activeTopic === t
+-                  ? 'bg-slate-900 text-white border-slate-900'
+-                  : 'bg-white text-slate-700 border-slate-300')
+-              }
++              aria-pressed={activeTopic === t}
++              className="chip"
+             >
+               {t}
+             </button>
+           ))}
+         </div>
+ 
+-        <div className="flex gap-2 overflow-x-auto px-4 pb-3">
++        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3">
+           {ageTabs.map((g) => (
+             <button
+               key={g}
++              type="button"
+               onClick={() => setActiveAge(g)}
+-              className={
+-                'shrink-0 px-2.5 py-1 rounded-full text-xs border ' +
+-                (activeAge === g
+-                  ? 'bg-slate-700 text-white border-slate-700'
+-                  : 'bg-white text-slate-500 border-slate-200')
+-              }
++              aria-pressed={activeAge === g}
++              className="chip chip-age"
+             >
+               {g}
+             </button>
+@@ -87,66 +79,88 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+       {/* Список — обычный поток документа, скроллится вместе со страницей.
+           Нижний отступ освобождает место под фиксированную панель. */}
+       <div
+-        className="flex-1 px-4 py-3"
++        className="flex-1 px-4 py-4"
+         style={{ paddingBottom: `calc(${BOTTOM_BAR_RESERVED_PX}px + env(safe-area-inset-bottom))` }}
+       >
+-        {loading && <p className="text-sm text-slate-400">Загрузка...</p>}
++        {loading && (
++          <ul className="flex flex-col gap-2.5" aria-busy="true" aria-label="Загрузка списка">
++            {[0, 1, 2].map((i) => (
++              <li key={i} className="h-[76px] animate-pulse rounded-2xl border border-line bg-surface2" />
++            ))}
++          </ul>
++        )}
++
+         {!loading && users.length === 0 && (
+-          <p className="text-sm text-slate-400">
+-            Пока никого нет. Список обновляется автоматически.
+-          </p>
++          <div className="mt-10 flex flex-col items-center gap-3 px-6 text-center">
++            <span className="grid h-14 w-14 place-items-center rounded-full bg-accent/15 text-accent-strong" aria-hidden="true">
++              <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
++                <path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.3A8 8 0 1 1 21 12z" />
++              </svg>
++            </span>
++            <p className="font-medium">Пока никого нет</p>
++            <p className="text-sm text-muted">Список обновляется автоматически.</p>
++          </div>
+         )}
+-        <ul className="flex flex-col gap-2">
+-          {users.map((u) => (
+-            <li key={u.id}>
+-              <button
+-                onClick={() => onOpenUser(u)}
+-                className="w-full text-left border rounded-xl p-3 hover:bg-slate-50"
+-              >
+-                <div className="flex items-center justify-between gap-2">
+-                  <div className="font-medium">{u.name}</div>
+-                  {u.ageGroup && (
+-                    <span className="shrink-0 text-[11px] text-slate-400">{u.ageGroup}</span>
+-                  )}
+-                </div>
+-                <div className="flex flex-wrap gap-1 mt-1">
+-                  {u.topics.map((t) => (
+-                    <span
+-                      key={t}
+-                      className="text-xs bg-slate-100 text-slate-700 rounded-full px-2 py-0.5"
+-                    >
+-                      {t}
++
++        {!loading && users.length > 0 && (
++          <ul className="flex flex-col gap-2.5">
++            {users.map((u) => (
++              <li key={u.id}>
++                <button
++                  type="button"
++                  onClick={() => onOpenUser(u)}
++                  className="flex w-full items-start gap-3 rounded-2xl border border-line bg-surface p-3.5 text-left shadow-sm transition-colors hover:border-brand/50 active:bg-surface2"
++                >
++                  <span
++                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand/15 text-base font-semibold text-link"
++                    aria-hidden="true"
++                  >
++                    {(u.name || '?').trim().charAt(0).toUpperCase()}
++                  </span>
++                  <span className="min-w-0 flex-1">
++                    <span className="flex items-center justify-between gap-2">
++                      <span className="truncate font-medium">{u.name}</span>
++                      {u.ageGroup && (
++                        <span className="shrink-0 rounded-full bg-surface2 px-2 py-0.5 text-[11px] text-muted">
++                          {u.ageGroup}
++                        </span>
++                      )}
+                     </span>
+-                  ))}
+-                </div>
+-              </button>
+-            </li>
+-          ))}
+-        </ul>
++                    <span className="mt-1.5 flex flex-wrap gap-1">
++                      {u.topics.map((t) => (
++                        <span
++                          key={t}
++                          className="rounded-full bg-brand/10 px-2 py-0.5 text-xs text-link"
++                        >
++                          {t}
++                        </span>
++                      ))}
++                    </span>
++                  </span>
++                  <svg viewBox="0 0 24 24" className="mt-2.5 h-4 w-4 shrink-0 text-subtle" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++                    <path d="m9 6 6 6-6 6" />
++                  </svg>
++                </button>
++              </li>
++            ))}
++          </ul>
++        )}
+       </div>
+ 
+       {/* Нижняя несворачиваемая панель: реклама + кнопки. Всегда прибита к низу экрана,
+           не участвует в прокрутке списка — стандартный паттерн bottom-nav. */}
+       <div
+-        className="fixed inset-x-0 bottom-0 z-20 bg-white border-t shadow-[0_-2px_8px_rgba(0,0,0,0.04)]"
++        className="fixed bottom-0 left-1/2 z-20 w-full max-w-md -translate-x-1/2 border-t border-line bg-surface/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur"
+         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+       >
+-        <div className="mx-auto max-w-md">
+-          <BusinessLoungeAd />
+-          <div className="flex gap-2 p-4">
+-            <button
+-              onClick={onLeave}
+-              className="flex-1 border border-red-300 text-red-600 rounded-lg py-2.5 text-sm font-medium"
+-            >
+-              Завершить общение
+-            </button>
+-            <button
+-              onClick={onEditTopics}
+-              className="flex-1 border border-slate-300 text-slate-700 rounded-lg py-2.5 text-sm font-medium"
+-            >
+-              Изменить темы
+-            </button>
+-          </div>
++        <BusinessLoungeAd />
++        <div className="flex gap-2 p-3">
++          <button type="button" onClick={onLeave} className="btn btn-danger">
++            Завершить общение
++          </button>
++          <button type="button" onClick={onEditTopics} className="btn btn-outline-brand">
++            Изменить темы
++          </button>
+         </div>
+       </div>
+     </div>
+diff --git a/components/RegisterForm.jsx b/components/RegisterForm.jsx
+index 97ebc62..b97ec1b 100644
+--- a/components/RegisterForm.jsx
++++ b/components/RegisterForm.jsx
+@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
+ import { TOPICS } from '@/lib/topics';
+ import { AGE_GROUPS } from '@/lib/ageGroups';
+ import { normalizePhoneInput, isValidRuPhone } from '@/lib/phone';
++import AppHeader from './AppHeader';
+ 
+ export default function RegisterForm({ onRegistered }) {
+   const [name, setName] = useState('');
+@@ -128,149 +129,168 @@ export default function RegisterForm({ onRegistered }) {
+     const mm = String(Math.floor(secondsLeft / 60)).padStart(1, '0');
+     const ss = String(secondsLeft % 60).padStart(2, '0');
+     return (
+-      <div className="p-5 flex flex-col gap-4">
+-        <h1 className="text-lg font-semibold">Подтвердите номер</h1>
+-        <p className="text-sm text-slate-600">
+-          Позвоните <b>со своего номера {phone}</b> на номер ниже. Звонок бесплатный — он
+-          сбросится сам, ничего говорить не нужно.
+-        </p>
+-        <a
+-          href={`tel:+${verify.callPhone}`}
+-          className="block text-center text-2xl font-mono py-4 rounded-xl bg-slate-900 text-white"
+-        >
+-          {verify.callPhonePretty}
+-        </a>
+-        <p className="text-sm text-slate-500 text-center">
+-          Ждём звонок… осталось {mm}:{ss}
+-        </p>
+-        <p className="text-xs text-slate-400 text-center">
+-          Номер проверяет сервис sms.ru (ООО «СМС.РУ»).
+-        </p>
+-        {error && <p className="text-sm text-red-600">{error}</p>}
+-        <button
+-          type="button"
+-          onClick={() => {
+-            setStep('form');
+-            setVerify(null);
+-          }}
+-          className="text-sm text-slate-500 underline"
+-        >
+-          Изменить номер
+-        </button>
++      <div>
++        <AppHeader title="Подтвердите номер" />
++        <div className="flex flex-col gap-4 px-4 pb-8 pt-2">
++          <p className="text-sm text-muted">
++            Позвоните <b className="text-fg">со своего номера {phone}</b> на номер ниже. Звонок
++            бесплатный — он сбросится сам, ничего говорить не нужно.
++          </p>
++          <a
++            href={`tel:+${verify.callPhone}`}
++            className="block rounded-2xl bg-gradient-to-br from-brand to-accent-strong py-5 text-center font-mono text-2xl text-white shadow-sm active:opacity-90"
++          >
++            {verify.callPhonePretty}
++          </a>
++          <div className="flex items-center justify-center gap-2 text-sm text-muted" aria-live="polite">
++            <span className="spinner !h-4 !w-4" aria-hidden="true" />
++            Ждём звонок… осталось {mm}:{ss}
++          </div>
++          <p className="text-center text-xs text-subtle">
++            Номер проверяет сервис sms.ru (ООО «СМС.РУ»).
++          </p>
++          {error && (
++            <p role="alert" className="alert-error">
++              {error}
++            </p>
++          )}
++          <button
++            type="button"
++            onClick={() => {
++              setStep('form');
++              setVerify(null);
++            }}
++            className="btn btn-outline"
++          >
++            Изменить номер
++          </button>
++        </div>
+       </div>
+     );
+   }
+ 
+   return (
+-    <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
+-      <h1 className="text-lg font-semibold">Найти собеседника</h1>
++    <form onSubmit={handleSubmit} noValidate>
++      <AppHeader title="Найти собеседника" subtitle="Аэропорт Геленджик" />
+ 
+-      <div className="flex flex-col gap-1">
+-        <label className="text-sm text-slate-600">Имя</label>
+-        <input
+-          className="border rounded-lg px-3 py-2 text-base"
+-          value={name}
+-          onChange={(e) => setName(e.target.value)}
+-          placeholder="Как к вам обращаться"
+-          maxLength={60}
+-        />
+-      </div>
++      <div className="flex flex-col gap-5 px-4 pb-8 pt-2">
++        <div className="flex flex-col gap-1.5">
++          <label htmlFor="pc-name" className="text-sm font-medium text-muted">
++            Имя
++          </label>
++          <input
++            id="pc-name"
++            className="field"
++            value={name}
++            onChange={(e) => setName(e.target.value)}
++            placeholder="Как к вам обращаться"
++            autoComplete="given-name"
++            maxLength={60}
++          />
++        </div>
+ 
+-      <div className="flex flex-col gap-1">
+-        <label className="text-sm text-slate-600">Телефон</label>
+-        <input
+-          className="border rounded-lg px-3 py-2 text-base"
+-          value={phone}
+-          onChange={handlePhoneChange}
+-          placeholder="+7 900 000-00-00"
+-          type="tel"
+-          inputMode="tel"
+-          autoComplete="tel"
+-          maxLength={18}
+-        />
+-      </div>
++        <div className="flex flex-col gap-1.5">
++          <label htmlFor="pc-phone" className="text-sm font-medium text-muted">
++            Телефон
++          </label>
++          <input
++            id="pc-phone"
++            className="field"
++            value={phone}
++            onChange={handlePhoneChange}
++            placeholder="+7 900 000-00-00"
++            type="tel"
++            inputMode="tel"
++            autoComplete="tel"
++            maxLength={18}
++          />
++        </div>
+ 
+-      <div className="flex flex-col gap-2">
+-        <label className="text-sm text-slate-600">Темы для общения</label>
+-        <div className="flex flex-wrap gap-2">
+-          {TOPICS.map((t) => {
+-            const active = topics.includes(t);
+-            return (
++        <fieldset className="flex flex-col gap-2">
++          <legend className="mb-2 text-sm font-medium text-muted">Темы для общения</legend>
++          <div className="flex flex-wrap gap-2">
++            {TOPICS.map((t) => (
+               <button
+                 type="button"
+                 key={t}
+                 onClick={() => toggleTopic(t)}
+-                className={
+-                  'px-3 py-1.5 rounded-full text-sm border transition ' +
+-                  (active
+-                    ? 'bg-slate-900 text-white border-slate-900'
+-                    : 'bg-white text-slate-700 border-slate-300')
+-                }
++                aria-pressed={topics.includes(t)}
++                className="chip"
+               >
+                 {t}
+               </button>
+-            );
+-          })}
+-        </div>
+-      </div>
++            ))}
++          </div>
++        </fieldset>
+ 
+-      <div className="flex flex-col gap-2">
+-        <label className="text-sm text-slate-600">Возраст (сервис доступен с 18 лет)</label>
+-        <div className="flex flex-wrap gap-2">
+-          {AGE_GROUPS.map((g) => {
+-            const active = ageGroup === g;
+-            return (
++        <fieldset className="flex flex-col gap-2">
++          <legend className="mb-2 text-sm font-medium text-muted">
++            Возраст <span className="font-normal text-subtle">(сервис доступен с 18 лет)</span>
++          </legend>
++          <div className="flex flex-wrap gap-2">
++            {AGE_GROUPS.map((g) => (
+               <button
+                 type="button"
+                 key={g}
+                 onClick={() => setAgeGroup(g)}
+-                className={
+-                  'px-3 py-1.5 rounded-full text-sm border transition ' +
+-                  (active
+-                    ? 'bg-slate-900 text-white border-slate-900'
+-                    : 'bg-white text-slate-700 border-slate-300')
+-                }
++                aria-pressed={ageGroup === g}
++                className="chip chip-age !px-3.5 !py-2 !text-sm"
+               >
+                 {g}
+               </button>
+-            );
+-          })}
+-        </div>
+-      </div>
++            ))}
++          </div>
++        </fieldset>
+ 
+-      <label className="flex items-start gap-2 text-sm text-slate-600">
+-        <input
+-          type="checkbox"
+-          className="mt-1"
+-          checked={consent}
+-          onChange={(e) => setConsent(e.target.checked)}
+-        />
+-        <span>
+-          Даю{' '}
+-          <a href="/consent" target="_blank" rel="noopener" className="underline">
+-            согласие на обработку персональных данных
+-          </a>
+-          : имя, телефон, возраст и темы показываются другим пользователям; номер и IP-адрес
+-          передаются в ООО «СМС.РУ» (sms.ru) для проверки номера звонком. Данные удаляются в
+-          00:00 по Москве.
+-        </span>
+-      </label>
++        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface2 p-3.5 text-sm text-muted">
++          <input
++            type="checkbox"
++            className="mt-0.5 h-5 w-5 shrink-0 accent-brand"
++            checked={consent}
++            onChange={(e) => setConsent(e.target.checked)}
++          />
++          <span>
++            Даю{' '}
++            <a
++              href="/consent"
++              target="_blank"
++              rel="noopener"
++              className="text-link underline underline-offset-2"
++            >
++              согласие на обработку персональных данных
++            </a>
++            : имя, телефон, возраст и темы показываются другим пользователям; номер и IP-адрес
++            передаются в ООО «СМС.РУ» (sms.ru) для проверки номера звонком. Данные удаляются в
++            00:00 по Москве.
++          </span>
++        </label>
+ 
+-      <p className="text-xs text-slate-500 -mt-2">
+-        <a href="/privacy" target="_blank" rel="noopener" className="underline">
+-          Политика обработки персональных данных
+-        </a>
+-      </p>
++        {error && (
++          <p role="alert" className="alert-error">
++            {error}
++          </p>
++        )}
+ 
+-      {error && <p className="text-sm text-red-600">{error}</p>}
+-
+-      <button
+-        type="submit"
+-        disabled={loading}
+-        className="mt-2 bg-slate-900 text-white rounded-lg py-3 text-base font-medium disabled:opacity-50"
+-      >
+-        {loading ? 'Подождите...' : 'Подтвердить номер и начать поиск'}
+-      </button>
++        <div className="flex flex-col gap-3">
++          <button
++            type="submit"
++            disabled={loading}
++            className="btn btn-primary !min-h-[52px] !text-base"
++          >
++            {loading ? 'Подождите...' : 'Подтвердить номер и начать поиск'}
++          </button>
++          <p className="text-center text-xs text-subtle">
++            <a
++              href="/privacy"
++              target="_blank"
++              rel="noopener"
++              className="text-link underline underline-offset-2"
++            >
++              Политика обработки персональных данных
++            </a>
++          </p>
++        </div>
++      </div>
+     </form>
+   );
+ }
+diff --git a/components/ThemeToggle.jsx b/components/ThemeToggle.jsx
+new file mode 100644
+index 0000000..76c9c1c
+--- /dev/null
++++ b/components/ThemeToggle.jsx
+@@ -0,0 +1,60 @@
++'use client';
++
++import { useEffect, useState } from 'react';
++
++const STORAGE_KEY = 'pc_theme';
++
++// Текущая тема: явный выбор пользователя (data-theme) или системная.
++function getEffectiveTheme() {
++  const forced = document.documentElement.getAttribute('data-theme');
++  if (forced === 'dark' || forced === 'light') return forced;
++  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
++}
++
++export default function ThemeToggle() {
++  const [theme, setTheme] = useState(null); // null до монтирования — чтобы не было рассинхрона SSR
++
++  useEffect(() => {
++    setTheme(getEffectiveTheme());
++    const mq = window.matchMedia('(prefers-color-scheme: dark)');
++    const onChange = () => setTheme(getEffectiveTheme());
++    mq.addEventListener('change', onChange);
++    return () => mq.removeEventListener('change', onChange);
++  }, []);
++
++  function toggle() {
++    const next = getEffectiveTheme() === 'dark' ? 'light' : 'dark';
++    document.documentElement.setAttribute('data-theme', next);
++    try {
++      localStorage.setItem(STORAGE_KEY, next);
++    } catch {
++      // приватный режим — тема просто не запомнится
++    }
++    setTheme(next);
++  }
++
++  const isDark = theme === 'dark';
++  const label = isDark ? 'Включить светлую тему' : 'Включить тёмную тему';
++
++  return (
++    <button
++      type="button"
++      onClick={toggle}
++      disabled={theme === null}
++      aria-label={label}
++      title={label}
++      className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line bg-surface text-muted transition-colors hover:bg-surface2 hover:text-fg"
++    >
++      {theme === null ? null : isDark ? (
++        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++          <circle cx="12" cy="12" r="4" />
++          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
++        </svg>
++      ) : (
++        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
++        </svg>
++      )}
++    </button>
++  );
++}
+diff --git a/tailwind.config.js b/tailwind.config.js
+index 7a1a5eb..0967d03 100644
+--- a/tailwind.config.js
++++ b/tailwind.config.js
+@@ -1,11 +1,41 @@
+ /** @type {import('tailwindcss').Config} */
++// Цвета берутся из CSS-переменных (см. app/globals.css), поэтому светлая и тёмная
++// темы переключаются без префиксов dark: в разметке.
++const c = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
++
+ module.exports = {
+   content: [
+     './app/**/*.{js,jsx}',
+     './components/**/*.{js,jsx}',
+   ],
+   theme: {
+-    extend: {},
++    extend: {
++      colors: {
++        canvas: c('canvas'),
++        surface: c('surface'),
++        surface2: c('surface2'),
++        line: c('line'),
++        fg: c('fg'),
++        muted: c('muted'),
++        subtle: c('subtle'),
++        link: c('link'),
++        brand: { DEFAULT: c('brand'), fg: c('brand-fg') },
++        accent: { DEFAULT: c('accent'), strong: c('accent-strong') },
++        danger: { DEFAULT: c('danger'), bg: c('danger-bg'), line: c('danger-line') },
++        ad: { bg: c('ad-bg'), line: c('ad-line'), fg: c('ad-fg'), muted: c('ad-muted') },
++      },
++      keyframes: {
++        fadeIn: { from: { opacity: '0' }, to: { opacity: '1' } },
++        sheetIn: {
++          from: { opacity: '0', transform: 'translateY(16px)' },
++          to: { opacity: '1', transform: 'translateY(0)' },
++        },
++      },
++      animation: {
++        'fade-in': 'fadeIn .18s ease-out',
++        'sheet-in': 'sheetIn .22s ease-out',
++      },
++    },
+   },
+   plugins: [],
+ };

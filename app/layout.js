@@ -16,13 +16,24 @@ export const viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#121e2b' },
+  ],
 };
+
+// Применяет сохранённый ручной выбор темы до первой отрисовки (без вспышки).
+// Если выбора нет — работает системная тема через prefers-color-scheme.
+const THEME_INIT = `try{var t=localStorage.getItem('pc_theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}`;
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="ru">
-      <body className="bg-slate-50 min-h-screen text-slate-900">
-        <div className="mx-auto max-w-md min-h-screen bg-white shadow-sm">
+    <html lang="ru" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+      </head>
+      <body className="min-h-screen">
+        <div className="mx-auto min-h-screen max-w-md bg-surface shadow-sm sm:border-x sm:border-line">
           {children}
         </div>
       </body>

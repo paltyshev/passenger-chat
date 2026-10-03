@@ -80,7 +80,9 @@ export default function HomePage() {
 
   if (checking) {
     return (
-      <div className="p-6 text-sm text-slate-400">Загрузка...</div>
+      <div className="grid min-h-[100dvh] place-items-center" role="status" aria-label="Загрузка">
+        <span className="spinner" />
+      </div>
     );
   }
 

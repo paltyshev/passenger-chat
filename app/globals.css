@@ -2,6 +2,164 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body {
+/* ------------------------------------------------------------------
+   Дизайн-токены. Фирменные цвета аэропорта Геленджик:
+   синий #1B65A6 (27 101 166) и бирюзовый #009899 (0 152 153).
+   Значения — «R G B» без запятых, чтобы работали модификаторы /30 и т.п.
+   Тема: по умолчанию следует системной (prefers-color-scheme),
+   ручной выбор пишет data-theme="light|dark" на <html>.
+   ------------------------------------------------------------------ */
+:root {
+  color-scheme: light;
+  --c-canvas: 233 240 247;
+  --c-surface: 255 255 255;
+  --c-surface2: 238 244 250;
+  --c-line: 208 220 232;
+  --c-fg: 15 34 51;
+  --c-muted: 74 93 112;
+  --c-subtle: 95 113 132;
+  --c-link: 27 101 166;
+  --c-brand: 27 101 166;
+  --c-brand-fg: 255 255 255;
+  --c-accent: 0 152 153;
+  --c-accent-strong: 0 121 122;
+  --c-danger: 180 35 24;
+  --c-danger-bg: 253 236 234;
+  --c-danger-line: 240 169 163;
+  --c-ad-bg: 230 245 245;
+  --c-ad-line: 191 227 227;
+  --c-ad-fg: 0 89 90;
+  --c-ad-muted: 0 106 107;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --c-canvas: 8 15 22;
+    --c-surface: 18 30 43;
+    --c-surface2: 27 42 59;
+    --c-line: 42 60 80;
+    --c-fg: 232 238 244;
+    --c-muted: 169 183 198;
+    --c-subtle: 125 141 160;
+    --c-link: 125 184 238;
+    --c-brand: 27 101 166;
+    --c-brand-fg: 255 255 255;
+    --c-accent: 0 152 153;
+    --c-accent-strong: 0 128 129;
+    --c-danger: 255 138 128;
+    --c-danger-bg: 45 22 24;
+    --c-danger-line: 122 46 42;
+    --c-ad-bg: 15 42 46;
+    --c-ad-line: 27 74 78;
+    --c-ad-fg: 142 227 227;
+    --c-ad-muted: 100 200 201;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --c-canvas: 8 15 22;
+  --c-surface: 18 30 43;
+  --c-surface2: 27 42 59;
+  --c-line: 42 60 80;
+  --c-fg: 232 238 244;
+  --c-muted: 169 183 198;
+  --c-subtle: 125 141 160;
+  --c-link: 125 184 238;
+  --c-brand: 27 101 166;
+  --c-brand-fg: 255 255 255;
+  --c-accent: 0 152 153;
+  --c-accent-strong: 0 128 129;
+  --c-danger: 255 138 128;
+  --c-danger-bg: 45 22 24;
+  --c-danger-line: 122 46 42;
+  --c-ad-bg: 15 42 46;
+  --c-ad-line: 27 74 78;
+  --c-ad-fg: 142 227 227;
+  --c-ad-muted: 100 200 201;
+}
+
+html,
+body {
   -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  @apply bg-canvas text-fg antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--c-accent));
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgb(var(--c-accent) / 0.3);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@layer components {
+  /* Поля ввода */
+  .field {
+    @apply w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base text-fg
+      placeholder:text-subtle transition-colors
+      focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30;
+  }
+
+  /* Чипы тем и возраста; состояние «выбрано» — через aria-pressed */
+  .chip {
+    @apply inline-flex shrink-0 items-center rounded-full border border-line bg-surface
+      px-3.5 py-2 text-sm text-fg transition-colors hover:border-brand/60 active:bg-surface2;
+  }
+  .chip[aria-pressed='true'] {
+    @apply border-brand bg-brand text-brand-fg;
+  }
+  .chip-age {
+    @apply px-3 py-1.5 text-xs text-muted;
+  }
+  .chip-age[aria-pressed='true'] {
+    @apply border-accent-strong bg-accent-strong text-brand-fg;
+  }
+
+  /* Кнопки */
+  .btn {
+    @apply inline-flex min-h-[44px] w-full items-center justify-center rounded-xl px-4 text-sm
+      font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-brand text-brand-fg hover:bg-brand/90 active:bg-brand/80;
+  }
+  .btn-outline {
+    @apply border border-line bg-surface text-fg hover:bg-surface2;
+  }
+  .btn-outline-brand {
+    @apply border border-brand/60 bg-surface text-link hover:bg-brand/10;
+  }
+  .btn-danger {
+    @apply border border-danger-line bg-surface text-danger hover:bg-danger-bg;
+  }
+
+  .alert-error {
+    @apply rounded-xl border border-danger-line bg-danger-bg px-3.5 py-2.5 text-sm text-danger;
+  }
+
+  .spinner {
+    @apply h-6 w-6 animate-spin rounded-full border-2 border-line border-t-brand;
+  }
 }

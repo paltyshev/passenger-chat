@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { TOPICS } from '@/lib/topics';
 import { AGE_GROUPS } from '@/lib/ageGroups';
 import { normalizePhoneInput, isValidRuPhone } from '@/lib/phone';
+import AppHeader from './AppHeader';
 
 export default function RegisterForm({ onRegistered }) {
   const [name, setName] = useState('');
@@ -128,149 +129,168 @@ export default function RegisterForm({ onRegistered }) {
     const mm = String(Math.floor(secondsLeft / 60)).padStart(1, '0');
     const ss = String(secondsLeft % 60).padStart(2, '0');
     return (
-      <div className="p-5 flex flex-col gap-4">
-        <h1 className="text-lg font-semibold">Подтвердите номер</h1>
-        <p className="text-sm text-slate-600">
-          Позвоните <b>со своего номера {phone}</b> на номер ниже. Звонок бесплатный — он
-          сбросится сам, ничего говорить не нужно.
-        </p>
-        <a
-          href={`tel:+${verify.callPhone}`}
-          className="block text-center text-2xl font-mono py-4 rounded-xl bg-slate-900 text-white"
-        >
-          {verify.callPhonePretty}
-        </a>
-        <p className="text-sm text-slate-500 text-center">
-          Ждём звонок… осталось {mm}:{ss}
-        </p>
-        <p className="text-xs text-slate-400 text-center">
-          Номер проверяет сервис sms.ru (ООО «СМС.РУ»).
-        </p>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="button"
-          onClick={() => {
-            setStep('form');
-            setVerify(null);
-          }}
-          className="text-sm text-slate-500 underline"
-        >
-          Изменить номер
-        </button>
+      <div>
+        <AppHeader title="Подтвердите номер" />
+        <div className="flex flex-col gap-4 px-4 pb-8 pt-2">
+          <p className="text-sm text-muted">
+            Позвоните <b className="text-fg">со своего номера {phone}</b> на номер ниже. Звонок
+            бесплатный — он сбросится сам, ничего говорить не нужно.
+          </p>
+          <a
+            href={`tel:+${verify.callPhone}`}
+            className="block rounded-2xl bg-gradient-to-br from-brand to-accent-strong py-5 text-center font-mono text-2xl text-white shadow-sm active:opacity-90"
+          >
+            {verify.callPhonePretty}
+          </a>
+          <div className="flex items-center justify-center gap-2 text-sm text-muted" aria-live="polite">
+            <span className="spinner !h-4 !w-4" aria-hidden="true" />
+            Ждём звонок… осталось {mm}:{ss}
+          </div>
+          <p className="text-center text-xs text-subtle">
+            Номер проверяет сервис sms.ru (ООО «СМС.РУ»).
+          </p>
+          {error && (
+            <p role="alert" className="alert-error">
+              {error}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setStep('form');
+              setVerify(null);
+            }}
+            className="btn btn-outline"
+          >
+            Изменить номер
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
-      <h1 className="text-lg font-semibold">Найти собеседника</h1>
+    <form onSubmit={handleSubmit} noValidate>
+      <AppHeader title="Найти собеседника" subtitle="Аэропорт Геленджик" />
 
-      <div className="flex flex-col gap-1">
-        <label className="text-sm text-slate-600">Имя</label>
-        <input
-          className="border rounded-lg px-3 py-2 text-base"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Как к вам обращаться"
-          maxLength={60}
-        />
-      </div>
+      <div className="flex flex-col gap-5 px-4 pb-8 pt-2">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="pc-name" className="text-sm font-medium text-muted">
+            Имя
+          </label>
+          <input
+            id="pc-name"
+            className="field"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Как к вам обращаться"
+            autoComplete="given-name"
+            maxLength={60}
+          />
+        </div>
 
-      <div className="flex flex-col gap-1">
-        <label className="text-sm text-slate-600">Телефон</label>
-        <input
-          className="border rounded-lg px-3 py-2 text-base"
-          value={phone}
-          onChange={handlePhoneChange}
-          placeholder="+7 900 000-00-00"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          maxLength={18}
-        />
-      </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="pc-phone" className="text-sm font-medium text-muted">
+            Телефон
+          </label>
+          <input
+            id="pc-phone"
+            className="field"
+            value={phone}
+            onChange={handlePhoneChange}
+            placeholder="+7 900 000-00-00"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            maxLength={18}
+          />
+        </div>
 
-      <div className="flex flex-col gap-2">
-        <label className="text-sm text-slate-600">Темы для общения</label>
-        <div className="flex flex-wrap gap-2">
-          {TOPICS.map((t) => {
-            const active = topics.includes(t);
-            return (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-2 text-sm font-medium text-muted">Темы для общения</legend>
+          <div className="flex flex-wrap gap-2">
+            {TOPICS.map((t) => (
               <button
                 type="button"
                 key={t}
                 onClick={() => toggleTopic(t)}
-                className={
-                  'px-3 py-1.5 rounded-full text-sm border transition ' +
-                  (active
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-700 border-slate-300')
-                }
+                aria-pressed={topics.includes(t)}
+                className="chip"
               >
                 {t}
               </button>
-            );
-          })}
-        </div>
-      </div>
+            ))}
+          </div>
+        </fieldset>
 
-      <div className="flex flex-col gap-2">
-        <label className="text-sm text-slate-600">Возраст (сервис доступен с 18 лет)</label>
-        <div className="flex flex-wrap gap-2">
-          {AGE_GROUPS.map((g) => {
-            const active = ageGroup === g;
-            return (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-2 text-sm font-medium text-muted">
+            Возраст <span className="font-normal text-subtle">(сервис доступен с 18 лет)</span>
+          </legend>
+          <div className="flex flex-wrap gap-2">
+            {AGE_GROUPS.map((g) => (
               <button
                 type="button"
                 key={g}
                 onClick={() => setAgeGroup(g)}
-                className={
-                  'px-3 py-1.5 rounded-full text-sm border transition ' +
-                  (active
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-700 border-slate-300')
-                }
+                aria-pressed={ageGroup === g}
+                className="chip chip-age !px-3.5 !py-2 !text-sm"
               >
                 {g}
               </button>
-            );
-          })}
+            ))}
+          </div>
+        </fieldset>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface2 p-3.5 text-sm text-muted">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-5 w-5 shrink-0 accent-brand"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+          />
+          <span>
+            Даю{' '}
+            <a
+              href="/consent"
+              target="_blank"
+              rel="noopener"
+              className="text-link underline underline-offset-2"
+            >
+              согласие на обработку персональных данных
+            </a>
+            : имя, телефон, возраст и темы показываются другим пользователям; номер и IP-адрес
+            передаются в ООО «СМС.РУ» (sms.ru) для проверки номера звонком. Данные удаляются в
+            00:00 по Москве.
+          </span>
+        </label>
+
+        {error && (
+          <p role="alert" className="alert-error">
+            {error}
+          </p>
+        )}
+
+        <div className="flex flex-col gap-3">
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn btn-primary !min-h-[52px] !text-base"
+          >
+            {loading ? 'Подождите...' : 'Подтвердить номер и начать поиск'}
+          </button>
+          <p className="text-center text-xs text-subtle">
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener"
+              className="text-link underline underline-offset-2"
+            >
+              Политика обработки персональных данных
+            </a>
+          </p>
         </div>
       </div>
-
-      <label className="flex items-start gap-2 text-sm text-slate-600">
-        <input
-          type="checkbox"
-          className="mt-1"
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-        />
-        <span>
-          Даю{' '}
-          <a href="/consent" target="_blank" rel="noopener" className="underline">
-            согласие на обработку персональных данных
-          </a>
-          : имя, телефон, возраст и темы показываются другим пользователям; номер и IP-адрес
-          передаются в ООО «СМС.РУ» (sms.ru) для проверки номера звонком. Данные удаляются в
-          00:00 по Москве.
-        </span>
-      </label>
-
-      <p className="text-xs text-slate-500 -mt-2">
-        <a href="/privacy" target="_blank" rel="noopener" className="underline">
-          Политика обработки персональных данных
-        </a>
-      </p>
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      <button
-        type="submit"
-        disabled={loading}
-        className="mt-2 bg-slate-900 text-white rounded-lg py-3 text-base font-medium disabled:opacity-50"
-      >
-        {loading ? 'Подождите...' : 'Подтвердить номер и начать поиск'}
-      </button>
     </form>
   );
 }

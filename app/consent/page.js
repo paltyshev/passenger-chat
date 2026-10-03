@@ -18,7 +18,7 @@ export const metadata = {
 export default function ConsentPage() {
   return (
     <LegalDoc title="Согласие на обработку персональных данных для организации общения между пользователями сервиса «Ковер-самолет»">
-      <p className="text-xs text-slate-500">Редакция {CONSENT_VERSION}</p>
+      <p className="text-xs text-subtle">Редакция {CONSENT_VERSION}</p>
 
       <p className="mt-4">
         Я, указавший в форме регистрации на сервисе {SERVICE_URL} своё имя и номер телефона, свободно, своей волей и в
@@ -115,7 +115,7 @@ export default function ConsentPage() {
           Согласие даётся в электронной форме: проставлением отметки в поле согласия в форме регистрации на сервисе
           {' '}{SERVICE_URL} и нажатием кнопки продолжения.
         </p>
-        <p className="text-slate-500">
+        <p className="text-subtle">
           Порядок обработки персональных данных Оператором описан в{' '}
           <a href="/privacy" className="underline">
             Политике обработки персональных данных

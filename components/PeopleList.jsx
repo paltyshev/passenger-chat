@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { AGE_GROUPS } from '@/lib/ageGroups';
+import AppHeader from './AppHeader';
 import BusinessLoungeAd from './BusinessLoungeAd';
 
-// Высота нижней несворачиваемой панели (реклама + кнопки).
+// Высота нижней несворачиваемой панели (реклама + кнопки) с небольшим запасом.
 // Используется как отступ снизу у списка, чтобы контент не прятался под панель.
-const BOTTOM_BAR_RESERVED_PX = 176;
+const BOTTOM_BAR_RESERVED_PX = 152;
 
 export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
   const [activeTopic, setActiveTopic] = useState('Все');
@@ -41,42 +42,33 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
   }, [load]);
 
   return (
-    <div className="min-h-[100dvh] flex flex-col">
+    <div className="flex min-h-[100dvh] flex-col">
       {/* Шапка + фильтры — единый sticky-блок сверху */}
-      <div className="sticky top-0 z-10 bg-white border-b shrink-0">
-        <div className="px-4 pt-4 pb-1">
-          <h1 className="text-lg font-semibold mb-1">Собеседники рядом</h1>
-          <p className="text-sm text-slate-500">Вы: {me.name}</p>
-        </div>
+      <div className="sticky top-0 z-10 shrink-0 border-b border-line bg-surface/95 backdrop-blur">
+        <AppHeader title="Собеседники рядом" subtitle={`Вы: ${me.name}`} />
 
-        <div className="flex gap-2 overflow-x-auto px-4 py-2">
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-2">
           {topicTabs.map((t) => (
             <button
               key={t}
+              type="button"
               onClick={() => setActiveTopic(t)}
-              className={
-                'shrink-0 px-3 py-1.5 rounded-full text-sm border ' +
-                (activeTopic === t
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-white text-slate-700 border-slate-300')
-              }
+              aria-pressed={activeTopic === t}
+              className="chip"
             >
               {t}
             </button>
           ))}
         </div>
 
-        <div className="flex gap-2 overflow-x-auto px-4 pb-3">
+        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3">
           {ageTabs.map((g) => (
             <button
               key={g}
+              type="button"
               onClick={() => setActiveAge(g)}
-              className={
-                'shrink-0 px-2.5 py-1 rounded-full text-xs border ' +
-                (activeAge === g
-                  ? 'bg-slate-700 text-white border-slate-700'
-                  : 'bg-white text-slate-500 border-slate-200')
-              }
+              aria-pressed={activeAge === g}
+              className="chip chip-age"
             >
               {g}
             </button>
@@ -87,66 +79,88 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
       {/* Список — обычный поток документа, скроллится вместе со страницей.
           Нижний отступ освобождает место под фиксированную панель. */}
       <div
-        className="flex-1 px-4 py-3"
+        className="flex-1 px-4 py-4"
         style={{ paddingBottom: `calc(${BOTTOM_BAR_RESERVED_PX}px + env(safe-area-inset-bottom))` }}
       >
-        {loading && <p className="text-sm text-slate-400">Загрузка...</p>}
-        {!loading && users.length === 0 && (
-          <p className="text-sm text-slate-400">
-            Пока никого нет. Список обновляется автоматически.
-          </p>
+        {loading && (
+          <ul className="flex flex-col gap-2.5" aria-busy="true" aria-label="Загрузка списка">
+            {[0, 1, 2].map((i) => (
+              <li key={i} className="h-[76px] animate-pulse rounded-2xl border border-line bg-surface2" />
+            ))}
+          </ul>
         )}
-        <ul className="flex flex-col gap-2">
-          {users.map((u) => (
-            <li key={u.id}>
-              <button
-                onClick={() => onOpenUser(u)}
-                className="w-full text-left border rounded-xl p-3 hover:bg-slate-50"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium">{u.name}</div>
-                  {u.ageGroup && (
-                    <span className="shrink-0 text-[11px] text-slate-400">{u.ageGroup}</span>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {u.topics.map((t) => (
-                    <span
-                      key={t}
-                      className="text-xs bg-slate-100 text-slate-700 rounded-full px-2 py-0.5"
-                    >
-                      {t}
+
+        {!loading && users.length === 0 && (
+          <div className="mt-10 flex flex-col items-center gap-3 px-6 text-center">
+            <span className="grid h-14 w-14 place-items-center rounded-full bg-accent/15 text-accent-strong" aria-hidden="true">
+              <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-4.3A8 8 0 1 1 21 12z" />
+              </svg>
+            </span>
+            <p className="font-medium">Пока никого нет</p>
+            <p className="text-sm text-muted">Список обновляется автоматически.</p>
+          </div>
+        )}
+
+        {!loading && users.length > 0 && (
+          <ul className="flex flex-col gap-2.5">
+            {users.map((u) => (
+              <li key={u.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpenUser(u)}
+                  className="flex w-full items-start gap-3 rounded-2xl border border-line bg-surface p-3.5 text-left shadow-sm transition-colors hover:border-brand/50 active:bg-surface2"
+                >
+                  <span
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand/15 text-base font-semibold text-link"
+                    aria-hidden="true"
+                  >
+                    {(u.name || '?').trim().charAt(0).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="truncate font-medium">{u.name}</span>
+                      {u.ageGroup && (
+                        <span className="shrink-0 rounded-full bg-surface2 px-2 py-0.5 text-[11px] text-muted">
+                          {u.ageGroup}
+                        </span>
+                      )}
                     </span>
-                  ))}
-                </div>
-              </button>
-            </li>
-          ))}
-        </ul>
+                    <span className="mt-1.5 flex flex-wrap gap-1">
+                      {u.topics.map((t) => (
+                        <span
+                          key={t}
+                          className="rounded-full bg-brand/10 px-2 py-0.5 text-xs text-link"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </span>
+                  </span>
+                  <svg viewBox="0 0 24 24" className="mt-2.5 h-4 w-4 shrink-0 text-subtle" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Нижняя несворачиваемая панель: реклама + кнопки. Всегда прибита к низу экрана,
           не участвует в прокрутке списка — стандартный паттерн bottom-nav. */}
       <div
-        className="fixed inset-x-0 bottom-0 z-20 bg-white border-t shadow-[0_-2px_8px_rgba(0,0,0,0.04)]"
+        className="fixed bottom-0 left-1/2 z-20 w-full max-w-md -translate-x-1/2 border-t border-line bg-surface/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className="mx-auto max-w-md">
-          <BusinessLoungeAd />
-          <div className="flex gap-2 p-4">
-            <button
-              onClick={onLeave}
-              className="flex-1 border border-red-300 text-red-600 rounded-lg py-2.5 text-sm font-medium"
-            >
-              Завершить общение
-            </button>
-            <button
-              onClick={onEditTopics}
-              className="flex-1 border border-slate-300 text-slate-700 rounded-lg py-2.5 text-sm font-medium"
-            >
-              Изменить темы
-            </button>
-          </div>
+        <BusinessLoungeAd />
+        <div className="flex gap-2 p-3">
+          <button type="button" onClick={onLeave} className="btn btn-danger">
+            Завершить общение
+          </button>
+          <button type="button" onClick={onEditTopics} className="btn btn-outline-brand">
+            Изменить темы
+          </button>
         </div>
       </div>
     </div>
