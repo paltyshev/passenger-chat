@@ -171,7 +171,7 @@ export default function RegisterForm({ onRegistered }) {
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <AppHeader title="Ковер-самолет" subtitle="Найдите собеседника в АЭРОПОРТУ ГЕЛЕНДЖИК" />
+      <AppHeader title="Ковер-самолет" subtitle="Найдите собеседника в аэропорту Геленджик" />
 
       <div className="flex flex-col gap-5 px-4 pb-8 pt-2">
         <div className="flex flex-col gap-1.5">
