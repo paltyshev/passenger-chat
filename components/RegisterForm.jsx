@@ -143,6 +143,9 @@ export default function RegisterForm({ onRegistered }) {
         <p className="text-sm text-slate-500 text-center">
           Ждём звонок… осталось {mm}:{ss}
         </p>
+        <p className="text-xs text-slate-400 text-center">
+          Номер проверяет сервис sms.ru (ООО «СМС.РУ»).
+        </p>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           type="button"
@@ -243,14 +246,21 @@ export default function RegisterForm({ onRegistered }) {
           onChange={(e) => setConsent(e.target.checked)}
         />
         <span>
-          Согласен(на) на обработку персональных данных (имя, телефон) для
-          организации общения с другими пассажирами. См.{' '}
-          <a href="/privacy" target="_blank" className="underline">
-            политику обработки
+          Даю{' '}
+          <a href="/consent" target="_blank" rel="noopener" className="underline">
+            согласие на обработку персональных данных
           </a>
-          .
+          : имя, телефон, возраст и темы показываются другим пользователям; номер и IP-адрес
+          передаются в ООО «СМС.РУ» (sms.ru) для проверки номера звонком. Данные удаляются в
+          00:00 по Москве.
         </span>
       </label>
+
+      <p className="text-xs text-slate-500 -mt-2">
+        <a href="/privacy" target="_blank" rel="noopener" className="underline">
+          Политика обработки персональных данных
+        </a>
+      </p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

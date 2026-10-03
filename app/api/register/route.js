@@ -5,6 +5,7 @@ import { nextMskMidnightMs, ttlSecondsUntilMskMidnight } from '@/lib/time';
 import { isValidRuPhone } from '@/lib/phone';
 import { AGE_GROUPS } from '@/lib/ageGroups';
 import { toSmsRuPhone } from '@/lib/smsru';
+import { CONSENT_VERSION } from '@/lib/legal';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,9 @@ export async function POST(req) {
     topics: topics.slice(0, 20),
     ageGroup,
     createdAt: Date.now(),
+    // подтверждение согласия: когда и по какой редакции текста дано
+    consentAt: Date.now(),
+    consentVersion: CONSENT_VERSION,
   };
 
   await redis.set(`user:${id}`, record, { ex: ttl });
