@@ -77,7 +77,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
             onClick={() => setAgeSheetOpen(true)}
             aria-haspopup="dialog"
             aria-pressed={ageActive}
-            className="chip gap-1.5 !py-1.5"
+            className="chip gap-1.5"
           >
             Возраст: {ageActive ? activeAge : 'все'}
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -178,10 +178,10 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
       >
         <BusinessLoungeAd />
         <div className="flex gap-2 p-3">
-          <button type="button" onClick={onLeave} className="btn btn-pill btn-danger-text">
+          <button type="button" onClick={onLeave} className="btn btn-danger-text">
             Завершить общение
           </button>
-          <button type="button" onClick={onEditTopics} className="btn btn-pill btn-primary">
+          <button type="button" onClick={onEditTopics} className="btn btn-primary">
             Изменить темы
           </button>
         </div>

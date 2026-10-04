@@ -139,7 +139,7 @@ export default function RegisterForm({ onRegistered }) {
           </p>
           <a
             href={`tel:+${verify.callPhone}`}
-            className="block rounded-2xl bg-gradient-to-br from-brand to-accent-strong py-5 text-center font-mono text-2xl text-white shadow-sm active:opacity-90"
+            className="block rounded-2xl bg-brand py-5 text-center font-mono text-2xl text-brand-fg transition-colors hover:bg-brand/90 active:bg-brand/80"
           >
             {verify.callPhonePretty}
           </a>
@@ -208,7 +208,9 @@ export default function RegisterForm({ onRegistered }) {
         </div>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-sm font-medium text-muted">Темы для общения</legend>
+          <legend className="mb-2 text-sm font-medium text-muted">
+            Темы для общения <span className="font-normal text-subtle">(можно несколько)</span>
+          </legend>
           <div className="flex flex-wrap gap-2">
             {TOPICS.map((t) => (
               <button
@@ -225,17 +227,18 @@ export default function RegisterForm({ onRegistered }) {
         </fieldset>
 
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-sm font-medium text-muted">
-            Возраст <span className="font-normal text-subtle">(сервис доступен с 18 лет)</span>
+          <legend className="mb-2 text-sm font-medium text-muted" id="pc-age-label">
+            Возраст <span className="font-normal text-subtle">(с 18 лет, выберите один)</span>
           </legend>
-          <div className="flex flex-wrap gap-2">
+          <div role="radiogroup" aria-labelledby="pc-age-label" className="grid grid-cols-3 gap-2">
             {AGE_GROUPS.map((g) => (
               <button
                 type="button"
                 key={g}
+                role="radio"
+                aria-checked={ageGroup === g}
                 onClick={() => setAgeGroup(g)}
-                aria-pressed={ageGroup === g}
-                className="chip chip-age !px-3.5 !py-2 !text-sm"
+                className="chip"
               >
                 {g}
               </button>
@@ -243,10 +246,10 @@ export default function RegisterForm({ onRegistered }) {
           </div>
         </fieldset>
 
-        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface2 p-3.5 text-sm text-muted">
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface2 p-3 text-xs leading-relaxed text-muted">
           <input
             type="checkbox"
-            className="mt-0.5 h-5 w-5 shrink-0 accent-brand"
+            className="h-5 w-5 shrink-0 accent-brand"
             checked={consent}
             onChange={(e) => setConsent(e.target.checked)}
           />
