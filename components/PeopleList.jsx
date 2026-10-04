@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { AGE_GROUPS } from '@/lib/ageGroups';
+import AgeFilterSheet from './AgeFilterSheet';
 import AppHeader from './AppHeader';
 import BusinessLoungeAd from './BusinessLoungeAd';
 
@@ -14,9 +14,10 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
   const [activeAge, setActiveAge] = useState('Все');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [ageSheetOpen, setAgeSheetOpen] = useState(false);
 
   const topicTabs = ['Все', ...me.topics];
-  const ageTabs = ['Все', ...AGE_GROUPS];
+  const ageActive = activeAge !== 'Все';
 
   const load = useCallback(async () => {
     const params = new URLSearchParams({ id: me.id });
@@ -47,32 +48,54 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
       <div className="sticky top-0 z-10 shrink-0 border-b border-line bg-surface/95 backdrop-blur">
         <AppHeader title="Собеседники рядом" subtitle={`Вы: ${me.name}`} />
 
-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-2">
-          {topicTabs.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setActiveTopic(t)}
-              aria-pressed={activeTopic === t}
-              className="chip"
-            >
-              {t}
-            </button>
-          ))}
+        {/* Темы — табы с подчёркиванием; справа градиент как подсказка прокрутки */}
+        <div className="relative border-b border-line">
+          <div role="tablist" aria-label="Темы" className="no-scrollbar flex gap-5 overflow-x-auto pl-4 pr-10">
+            {topicTabs.map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={activeTopic === t}
+                onClick={() => setActiveTopic(t)}
+                className="tab"
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <div
+            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-surface to-transparent"
+            aria-hidden="true"
+          />
         </div>
 
-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3">
-          {ageTabs.map((g) => (
+        {/* Возраст — одна кнопка, варианты в нижней шторке */}
+        <div className="flex items-center gap-2 px-4 py-2.5">
+          <button
+            type="button"
+            onClick={() => setAgeSheetOpen(true)}
+            aria-haspopup="dialog"
+            aria-pressed={ageActive}
+            className="chip gap-1.5 !py-1.5"
+          >
+            Возраст: {ageActive ? activeAge : 'все'}
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          {ageActive && (
             <button
-              key={g}
               type="button"
-              onClick={() => setActiveAge(g)}
-              aria-pressed={activeAge === g}
-              className="chip chip-age"
+              onClick={() => setActiveAge('Все')}
+              aria-label="Сбросить фильтр по возрасту"
+              className="grid h-8 w-8 place-items-center rounded-full text-muted transition-colors hover:bg-surface2 hover:text-fg"
             >
-              {g}
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
             </button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -155,14 +178,25 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
       >
         <BusinessLoungeAd />
         <div className="flex gap-2 p-3">
-          <button type="button" onClick={onLeave} className="btn btn-danger">
+          <button type="button" onClick={onLeave} className="btn btn-pill btn-danger-text">
             Завершить общение
           </button>
-          <button type="button" onClick={onEditTopics} className="btn btn-outline-brand">
+          <button type="button" onClick={onEditTopics} className="btn btn-pill btn-primary">
             Изменить темы
           </button>
         </div>
       </div>
+
+      {ageSheetOpen && (
+        <AgeFilterSheet
+          value={activeAge}
+          onSelect={(g) => {
+            setActiveAge(g);
+            setAgeSheetOpen(false);
+          }}
+          onClose={() => setAgeSheetOpen(false)}
+        />
+      )}
     </div>
   );
 }

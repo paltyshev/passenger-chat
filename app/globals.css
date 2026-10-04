@@ -122,7 +122,7 @@ body {
       focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30;
   }
 
-  /* Чипы тем и возраста; состояние «выбрано» — через aria-pressed */
+  /* Чипы: выбор тем в формах и кнопка фильтра по возрасту; «выбрано» — через aria-pressed */
   .chip {
     @apply inline-flex shrink-0 items-center rounded-full border border-line bg-surface
       px-3.5 py-2 text-sm text-fg transition-colors hover:border-brand/60 active:bg-surface2;
@@ -133,8 +133,14 @@ body {
   .chip-age {
     @apply px-3 py-1.5 text-xs text-muted;
   }
-  .chip-age[aria-pressed='true'] {
-    @apply border-accent-strong bg-accent-strong text-brand-fg;
+
+  /* Табы с подчёркиванием (фильтр по темам); состояние — через aria-selected */
+  .tab {
+    @apply -mb-px shrink-0 whitespace-nowrap border-b-2 border-transparent px-0.5 pb-2.5 pt-2
+      text-sm text-muted transition-colors hover:text-fg;
+  }
+  .tab[aria-selected='true'] {
+    @apply border-brand font-medium text-fg;
   }
 
   /* Кнопки */
@@ -153,6 +159,12 @@ body {
   }
   .btn-danger {
     @apply border border-danger-line bg-surface text-danger hover:bg-danger-bg;
+  }
+  .btn-danger-text {
+    @apply text-danger hover:bg-danger-bg;
+  }
+  .btn-pill {
+    @apply rounded-full;
   }
 
   .alert-error {

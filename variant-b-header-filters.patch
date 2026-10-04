@@ -1,0 +1,275 @@
+diff --git a/app/globals.css b/app/globals.css
+index f3d9f38..6ad48da 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -122,7 +122,7 @@ body {
+       focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30;
+   }
+ 
+-  /* Чипы тем и возраста; состояние «выбрано» — через aria-pressed */
++  /* Чипы: выбор тем в формах и кнопка фильтра по возрасту; «выбрано» — через aria-pressed */
+   .chip {
+     @apply inline-flex shrink-0 items-center rounded-full border border-line bg-surface
+       px-3.5 py-2 text-sm text-fg transition-colors hover:border-brand/60 active:bg-surface2;
+@@ -133,8 +133,14 @@ body {
+   .chip-age {
+     @apply px-3 py-1.5 text-xs text-muted;
+   }
+-  .chip-age[aria-pressed='true'] {
+-    @apply border-accent-strong bg-accent-strong text-brand-fg;
++
++  /* Табы с подчёркиванием (фильтр по темам); состояние — через aria-selected */
++  .tab {
++    @apply -mb-px shrink-0 whitespace-nowrap border-b-2 border-transparent px-0.5 pb-2.5 pt-2
++      text-sm text-muted transition-colors hover:text-fg;
++  }
++  .tab[aria-selected='true'] {
++    @apply border-brand font-medium text-fg;
+   }
+ 
+   /* Кнопки */
+@@ -154,6 +160,12 @@ body {
+   .btn-danger {
+     @apply border border-danger-line bg-surface text-danger hover:bg-danger-bg;
+   }
++  .btn-danger-text {
++    @apply text-danger hover:bg-danger-bg;
++  }
++  .btn-pill {
++    @apply rounded-full;
++  }
+ 
+   .alert-error {
+     @apply rounded-xl border border-danger-line bg-danger-bg px-3.5 py-2.5 text-sm text-danger;
+diff --git a/components/AgeFilterSheet.jsx b/components/AgeFilterSheet.jsx
+new file mode 100644
+index 0000000..f2042ea
+--- /dev/null
++++ b/components/AgeFilterSheet.jsx
+@@ -0,0 +1,65 @@
++'use client';
++
++import { useEffect, useRef } from 'react';
++import { AGE_GROUPS } from '@/lib/ageGroups';
++
++const OPTIONS = ['Все', ...AGE_GROUPS];
++
++// Нижняя шторка выбора возрастной группы. Выбор применяется сразу и закрывает шторку.
++export default function AgeFilterSheet({ value, onSelect, onClose }) {
++  const dialogRef = useRef(null);
++
++  useEffect(() => {
++    dialogRef.current?.focus();
++    const onKey = (e) => e.key === 'Escape' && onClose();
++    window.addEventListener('keydown', onKey);
++    return () => window.removeEventListener('keydown', onKey);
++  }, [onClose]);
++
++  return (
++    <div
++      className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center"
++      onClick={onClose}
++    >
++      <div
++        ref={dialogRef}
++        role="dialog"
++        aria-modal="true"
++        aria-labelledby="age-title"
++        tabIndex={-1}
++        onClick={(e) => e.stopPropagation()}
++        className="w-full animate-sheet-in rounded-t-3xl border-t border-line bg-surface p-5 shadow-2xl outline-none sm:max-w-sm sm:rounded-2xl sm:border"
++        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
++      >
++        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line sm:hidden" aria-hidden="true" />
++        <h2 id="age-title" className="mb-2 text-lg font-semibold">
++          Возраст собеседника
++        </h2>
++        <div role="radiogroup" aria-labelledby="age-title" className="flex flex-col">
++          {OPTIONS.map((g) => {
++            const selected = value === g;
++            return (
++              <button
++                key={g}
++                type="button"
++                role="radio"
++                aria-checked={selected}
++                onClick={() => onSelect(g)}
++                className={`flex min-h-[48px] w-full items-center justify-between rounded-xl px-3 text-left text-base transition-colors hover:bg-surface2 ${
++                  selected ? 'font-medium text-link' : 'text-fg'
++                }`}
++              >
++                <span>{g}</span>
++                {selected && (
++                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++                    <path d="m5 12 5 5 9-10" />
++                  </svg>
++                )}
++              </button>
++            );
++          })}
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/components/AppHeader.jsx b/components/AppHeader.jsx
+index 5115706..941e594 100644
+--- a/components/AppHeader.jsx
++++ b/components/AppHeader.jsx
+@@ -1,19 +1,20 @@
+ import ThemeToggle from './ThemeToggle';
+ 
+-// Общая шапка: фирменная полоса, значок, заголовок и переключатель темы справа.
++// Общая шапка: фирменная полоса, логотип аэропорта, заголовок и переключатель темы справа.
+ export default function AppHeader({ title, subtitle }) {
+   return (
+     <header>
+       <div className="h-1 bg-gradient-to-r from-brand to-accent" aria-hidden="true" />
+       <div className="flex items-center gap-3 px-4 py-3">
+-        <span
+-          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand to-accent text-white shadow-sm"
++        {/* eslint-disable-next-line @next/next/no-img-element */}
++        <img
++          src="/apple-touch-icon.png"
++          alt=""
++          width={40}
++          height={40}
++          className="h-10 w-10 shrink-0 object-contain"
+           aria-hidden="true"
+-        >
+-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+-            <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" />
+-          </svg>
+-        </span>
++        />
+         <div className="min-w-0 flex-1">
+           <h1 className="truncate text-lg font-semibold leading-tight">{title}</h1>
+           {subtitle && <p className="truncate text-sm text-muted">{subtitle}</p>}
+diff --git a/components/PeopleList.jsx b/components/PeopleList.jsx
+index 8d3bff6..d0b7029 100644
+--- a/components/PeopleList.jsx
++++ b/components/PeopleList.jsx
+@@ -1,7 +1,7 @@
+ 'use client';
+ 
+ import { useEffect, useState, useCallback } from 'react';
+-import { AGE_GROUPS } from '@/lib/ageGroups';
++import AgeFilterSheet from './AgeFilterSheet';
+ import AppHeader from './AppHeader';
+ import BusinessLoungeAd from './BusinessLoungeAd';
+ 
+@@ -14,9 +14,10 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+   const [activeAge, setActiveAge] = useState('Все');
+   const [users, setUsers] = useState([]);
+   const [loading, setLoading] = useState(true);
++  const [ageSheetOpen, setAgeSheetOpen] = useState(false);
+ 
+   const topicTabs = ['Все', ...me.topics];
+-  const ageTabs = ['Все', ...AGE_GROUPS];
++  const ageActive = activeAge !== 'Все';
+ 
+   const load = useCallback(async () => {
+     const params = new URLSearchParams({ id: me.id });
+@@ -47,32 +48,54 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+       <div className="sticky top-0 z-10 shrink-0 border-b border-line bg-surface/95 backdrop-blur">
+         <AppHeader title="Собеседники рядом" subtitle={`Вы: ${me.name}`} />
+ 
+-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-2">
+-          {topicTabs.map((t) => (
+-            <button
+-              key={t}
+-              type="button"
+-              onClick={() => setActiveTopic(t)}
+-              aria-pressed={activeTopic === t}
+-              className="chip"
+-            >
+-              {t}
+-            </button>
+-          ))}
++        {/* Темы — табы с подчёркиванием; справа градиент как подсказка прокрутки */}
++        <div className="relative border-b border-line">
++          <div role="tablist" aria-label="Темы" className="no-scrollbar flex gap-5 overflow-x-auto pl-4 pr-10">
++            {topicTabs.map((t) => (
++              <button
++                key={t}
++                type="button"
++                role="tab"
++                aria-selected={activeTopic === t}
++                onClick={() => setActiveTopic(t)}
++                className="tab"
++              >
++                {t}
++              </button>
++            ))}
++          </div>
++          <div
++            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-surface to-transparent"
++            aria-hidden="true"
++          />
+         </div>
+ 
+-        <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-3">
+-          {ageTabs.map((g) => (
++        {/* Возраст — одна кнопка, варианты в нижней шторке */}
++        <div className="flex items-center gap-2 px-4 py-2.5">
++          <button
++            type="button"
++            onClick={() => setAgeSheetOpen(true)}
++            aria-haspopup="dialog"
++            aria-pressed={ageActive}
++            className="chip gap-1.5 !py-1.5"
++          >
++            Возраст: {ageActive ? activeAge : 'все'}
++            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++              <path d="m6 9 6 6 6-6" />
++            </svg>
++          </button>
++          {ageActive && (
+             <button
+-              key={g}
+               type="button"
+-              onClick={() => setActiveAge(g)}
+-              aria-pressed={activeAge === g}
+-              className="chip chip-age"
++              onClick={() => setActiveAge('Все')}
++              aria-label="Сбросить фильтр по возрасту"
++              className="grid h-8 w-8 place-items-center rounded-full text-muted transition-colors hover:bg-surface2 hover:text-fg"
+             >
+-              {g}
++              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++                <path d="M6 6l12 12M18 6 6 18" />
++              </svg>
+             </button>
+-          ))}
++          )}
+         </div>
+       </div>
+ 
+@@ -155,14 +178,25 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+       >
+         <BusinessLoungeAd />
+         <div className="flex gap-2 p-3">
+-          <button type="button" onClick={onLeave} className="btn btn-danger">
++          <button type="button" onClick={onLeave} className="btn btn-pill btn-danger-text">
+             Завершить общение
+           </button>
+-          <button type="button" onClick={onEditTopics} className="btn btn-outline-brand">
++          <button type="button" onClick={onEditTopics} className="btn btn-pill btn-primary">
+             Изменить темы
+           </button>
+         </div>
+       </div>
++
++      {ageSheetOpen && (
++        <AgeFilterSheet
++          value={activeAge}
++          onSelect={(g) => {
++            setActiveAge(g);
++            setAgeSheetOpen(false);
++          }}
++          onClose={() => setAgeSheetOpen(false)}
++        />
++      )}
+     </div>
+   );
+ }
