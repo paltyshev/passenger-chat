@@ -2,7 +2,6 @@ export default function BusinessLoungeAd() {
   return (
     <a
       href="https://gelaero.ru/services/business-lounge/"
-      target="_blank"
       rel="noopener noreferrer sponsored"
       className="flex items-center gap-3 border-b border-ad-line bg-ad-bg px-4 py-2.5 transition-opacity active:opacity-80"
     >
