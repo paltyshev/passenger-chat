@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import RegisterForm from '@/components/RegisterForm';
 import PeopleList from '@/components/PeopleList';
 import ContactModal from '@/components/ContactModal';
-import EditTopicsModal from '@/components/EditTopicsModal';
+import EditProfileModal from '@/components/EditProfileModal';
 
 const STORAGE_KEY = 'pc_user';
 
@@ -12,7 +12,7 @@ export default function HomePage() {
   const [me, setMe] = useState(null); // {id, name, phone, topics}
   const [checking, setChecking] = useState(true);
   const [openedUser, setOpenedUser] = useState(null); // {id, name, phone}
-  const [editingTopics, setEditingTopics] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
 
   // При загрузке страницы проверяем, есть ли ещё активная сессия
   useEffect(() => {
@@ -26,7 +26,7 @@ export default function HomePage() {
       .then((r) => r.json())
       .then((data) => {
         if (data.user) {
-          setMe({ ...saved, topics: data.user.topics });
+          setMe({ ...saved, topics: data.user.topics, bio: data.user.bio || '', avatarV: data.user.avatarV || null });
         } else {
           localStorage.removeItem(STORAGE_KEY);
         }
@@ -66,16 +66,20 @@ export default function HomePage() {
     }
   }
 
-  async function handleSaveTopics(topics) {
-    await fetch('/api/update-topics', {
+  // patch: { topics, bio, avatar?: dataURL, removeAvatar?: true }
+  async function handleSaveProfile(patch) {
+    const res = await fetch('/api/update-profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: me.id, topics }),
+      body: JSON.stringify({ id: me.id, ...patch }),
     });
-    const updated = { ...me, topics };
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { error: data.error || 'failed' };
+    const updated = { ...me, topics: patch.topics, bio: data.bio, avatarV: data.avatarV };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     setMe(updated);
-    setEditingTopics(false);
+    setEditingProfile(false);
+    return {};
   }
 
   if (checking) {
@@ -96,14 +100,14 @@ export default function HomePage() {
         me={me}
         onOpenUser={handleOpenUser}
         onLeave={handleLeave}
-        onEditTopics={() => setEditingTopics(true)}
+        onEditProfile={() => setEditingProfile(true)}
       />
       <ContactModal user={openedUser} onClose={() => setOpenedUser(null)} />
-      {editingTopics && (
-        <EditTopicsModal
-          currentTopics={me.topics}
-          onSave={handleSaveTopics}
-          onClose={() => setEditingTopics(false)}
+      {editingProfile && (
+        <EditProfileModal
+          me={me}
+          onSave={handleSaveProfile}
+          onClose={() => setEditingProfile(false)}
         />
       )}
     </>

@@ -33,8 +33,16 @@ export async function GET(req) {
     users = users.filter((u) => u.ageGroup === ageGroup);
   }
 
-  // не отдаём телефон в общем списке — только имя, темы и возрастную группу
-  const safeUsers = users.map(({ id, name, topics, ageGroup }) => ({ id, name, topics, ageGroup }));
+  // не отдаём телефон в общем списке — имя, темы, возраст, «о себе» и версию аватара
+  // (саму картинку браузер берёт отдельно из /api/avatar/<id>?v=<avatarV> и кэширует)
+  const safeUsers = users.map(({ id, name, topics, ageGroup, bio, avatarV }) => ({
+    id,
+    name,
+    topics,
+    ageGroup,
+    bio: bio || '',
+    avatarV: avatarV || null,
+  }));
 
   return NextResponse.json({ users: safeUsers });
 }

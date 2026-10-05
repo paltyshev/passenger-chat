@@ -14,6 +14,7 @@ export async function POST(req) {
   if (!id) return NextResponse.json({ error: 'no_id' }, { status: 400 });
 
   await redis.del(`user:${id}`);
+  await redis.del(`photo:${id}`);
   await redis.zrem('active_users', id);
 
   return NextResponse.json({ ok: true });

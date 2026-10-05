@@ -6,12 +6,16 @@ import { TOPICS } from '@/lib/topics';
 import { AGE_GROUPS } from '@/lib/ageGroups';
 import { normalizePhoneInput, isValidRuPhone } from '@/lib/phone';
 import AppHeader from './AppHeader';
+import AvatarPicker from './AvatarPicker';
+import BioField from './BioField';
 
 export default function RegisterForm({ onRegistered }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [topics, setTopics] = useState([]);
   const [ageGroup, setAgeGroup] = useState('');
+  const [bio, setBio] = useState('');
+  const [avatar, setAvatar] = useState(''); // data URL уже сжатого фото
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -81,15 +85,30 @@ export default function RegisterForm({ onRegistered }) {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, topics, ageGroup, consent, verifyToken: token }),
+        body: JSON.stringify({ name, phone, topics, ageGroup, consent, verifyToken: token, bio, avatar: avatar || undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError('Не удалось начать поиск, попробуйте ещё раз');
+        setError(
+          data.error === 'bio_contacts'
+            ? 'В «О себе» нельзя указывать ссылки и номера телефонов'
+            : data.error === 'invalid_avatar'
+              ? 'Не удалось загрузить фото, выберите другое'
+              : 'Не удалось начать поиск, попробуйте ещё раз'
+        );
+        finishing.current = false;
         setStep('form');
         return;
       }
-      onRegistered({ id: data.id, name: name.trim(), phone: phone.trim(), topics, ageGroup });
+      onRegistered({
+        id: data.id,
+        name: name.trim(),
+        phone: phone.trim(),
+        topics,
+        ageGroup,
+        bio: bio.trim(),
+        avatarV: data.avatarV || null,
+      });
     } catch {
       setError('Ошибка сети, попробуйте ещё раз');
       setStep('form');
@@ -175,6 +194,8 @@ export default function RegisterForm({ onRegistered }) {
       <AppHeader title="Ковер-самолет" subtitle="Найдите собеседника в аэропорту Геленджик" />
 
       <div className="flex flex-col gap-5 px-4 pb-8 pt-2">
+        <AvatarPicker src={avatar} onPick={setAvatar} onRemove={() => setAvatar('')} />
+
         <div className="flex flex-col gap-1.5">
           <label htmlFor="pc-name" className="text-sm font-medium text-muted">
             Имя
@@ -246,6 +267,8 @@ export default function RegisterForm({ onRegistered }) {
           </div>
         </fieldset>
 
+        <BioField value={bio} onChange={setBio} />
+
         <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface2 p-3 text-xs leading-relaxed text-muted">
           <input
             type="checkbox"
@@ -262,7 +285,7 @@ export default function RegisterForm({ onRegistered }) {
             >
               согласие на обработку персональных данных
             </Link>
-            : имя, телефон, возраст и темы показываются другим пользователям.
+            : имя, фото, «о себе», возраст и темы показываются другим пользователям, телефон — тем, кто откроет вашу карточку.
           </span>
         </label>
 

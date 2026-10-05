@@ -1,0 +1,1047 @@
+diff --git a/app/api/avatar/[id]/route.js b/app/api/avatar/[id]/route.js
+new file mode 100644
+index 0000000..136dc02
+--- /dev/null
++++ b/app/api/avatar/[id]/route.js
+@@ -0,0 +1,22 @@
++import { redis } from '@/lib/redis';
++import { ID_RE } from '@/lib/profile';
++
++export const dynamic = 'force-dynamic';
++
++// Отдаёт аватар как обычную картинку. Версия в ?v= меняется при смене фото,
++// поэтому браузер кэширует его и не дёргает Redis при каждом опросе списка.
++export async function GET(_req, { params }) {
++  const { id } = params;
++  if (!ID_RE.test(id)) return new Response(null, { status: 404 });
++
++  const base64 = await redis.get(`photo:${id}`);
++  if (!base64 || typeof base64 !== 'string') return new Response(null, { status: 404 });
++
++  return new Response(Buffer.from(base64, 'base64'), {
++    headers: {
++      'Content-Type': 'image/jpeg',
++      'Cache-Control': 'private, max-age=3600',
++      'X-Content-Type-Options': 'nosniff',
++    },
++  });
++}
+diff --git a/app/api/leave/route.js b/app/api/leave/route.js
+index 0989af9..9cbdeae 100644
+--- a/app/api/leave/route.js
++++ b/app/api/leave/route.js
+@@ -14,6 +14,7 @@ export async function POST(req) {
+   if (!id) return NextResponse.json({ error: 'no_id' }, { status: 400 });
+ 
+   await redis.del(`user:${id}`);
++  await redis.del(`photo:${id}`);
+   await redis.zrem('active_users', id);
+ 
+   return NextResponse.json({ ok: true });
+diff --git a/app/api/list/route.js b/app/api/list/route.js
+index 780d677..86565d6 100644
+--- a/app/api/list/route.js
++++ b/app/api/list/route.js
+@@ -33,8 +33,16 @@ export async function GET(req) {
+     users = users.filter((u) => u.ageGroup === ageGroup);
+   }
+ 
+-  // не отдаём телефон в общем списке — только имя, темы и возрастную группу
+-  const safeUsers = users.map(({ id, name, topics, ageGroup }) => ({ id, name, topics, ageGroup }));
++  // не отдаём телефон в общем списке — имя, темы, возраст, «о себе» и версию аватара
++  // (саму картинку браузер берёт отдельно из /api/avatar/<id>?v=<avatarV> и кэширует)
++  const safeUsers = users.map(({ id, name, topics, ageGroup, bio, avatarV }) => ({
++    id,
++    name,
++    topics,
++    ageGroup,
++    bio: bio || '',
++    avatarV: avatarV || null,
++  }));
+ 
+   return NextResponse.json({ users: safeUsers });
+ }
+diff --git a/app/api/register/route.js b/app/api/register/route.js
+index 5504c6d..b97e68a 100644
+--- a/app/api/register/route.js
++++ b/app/api/register/route.js
+@@ -6,6 +6,7 @@ import { isValidRuPhone } from '@/lib/phone';
+ import { AGE_GROUPS } from '@/lib/ageGroups';
+ import { toSmsRuPhone } from '@/lib/smsru';
+ import { CONSENT_VERSION } from '@/lib/legal';
++import { cleanBio, parseAvatar } from '@/lib/profile';
+ 
+ export const dynamic = 'force-dynamic';
+ 
+@@ -17,7 +18,7 @@ export async function POST(req) {
+     return NextResponse.json({ error: 'bad_json' }, { status: 400 });
+   }
+ 
+-  const { id: clientId, name, phone, topics, ageGroup, consent, verifyToken } = body || {};
++  const { id: clientId, name, phone, topics, ageGroup, consent, verifyToken, bio, avatar } = body || {};
+ 
+   if (
+     typeof name !== 'string' ||
+@@ -33,6 +34,17 @@ export async function POST(req) {
+     return NextResponse.json({ error: 'invalid_data' }, { status: 400 });
+   }
+ 
++  // Необязательные поля профиля: «о себе» и аватар
++  const cleanedBio = cleanBio(bio);
++  if (!cleanedBio.ok) {
++    return NextResponse.json({ error: cleanedBio.error }, { status: 400 });
++  }
++  let photo = null;
++  if (avatar !== undefined && avatar !== null && avatar !== '') {
++    photo = parseAvatar(avatar);
++    if (!photo.ok) return NextResponse.json({ error: 'invalid_avatar' }, { status: 400 });
++  }
++
+   // Номер должен быть подтверждён звонком (см. /api/verify/*).
+   if (typeof verifyToken !== 'string' || !verifyToken) {
+     return NextResponse.json({ error: 'phone_not_verified' }, { status: 403 });
+@@ -55,14 +67,17 @@ export async function POST(req) {
+     phone: phone.trim().slice(0, 20),
+     topics: topics.slice(0, 20),
+     ageGroup,
++    bio: cleanedBio.value,
++    avatarV: photo ? Date.now() : undefined,
+     createdAt: Date.now(),
+     // подтверждение согласия: когда и по какой редакции текста дано
+     consentAt: Date.now(),
+     consentVersion: CONSENT_VERSION,
+   };
+ 
++  if (photo) await redis.set(`photo:${id}`, photo.base64, { ex: ttl });
+   await redis.set(`user:${id}`, record, { ex: ttl });
+   await redis.zadd('active_users', { score: expiresAt, member: id });
+ 
+-  return NextResponse.json({ id, expiresAt });
++  return NextResponse.json({ id, expiresAt, avatarV: record.avatarV || null });
+ }
+diff --git a/app/api/reveal/route.js b/app/api/reveal/route.js
+index 19f31f3..5cd76ff 100644
+--- a/app/api/reveal/route.js
++++ b/app/api/reveal/route.js
+@@ -12,5 +12,11 @@ export async function GET(req) {
+   if (!record) return NextResponse.json({ user: null });
+ 
+   const user = typeof record === 'string' ? JSON.parse(record) : record;
+-  return NextResponse.json({ user: { id: user.id, name: user.name, phone: user.phone } });
++  return NextResponse.json({ user: {
++      id: user.id,
++      name: user.name,
++      phone: user.phone,
++      bio: user.bio || '',
++      avatarV: user.avatarV || null,
++    } });
+ }
+diff --git a/app/api/update-profile/route.js b/app/api/update-profile/route.js
+new file mode 100644
+index 0000000..2ed2de3
+--- /dev/null
++++ b/app/api/update-profile/route.js
+@@ -0,0 +1,54 @@
++import { NextResponse } from 'next/server';
++import { redis } from '@/lib/redis';
++import { nextMskMidnightMs, ttlSecondsUntilMskMidnight } from '@/lib/time';
++import { cleanBio, parseAvatar } from '@/lib/profile';
++
++export const dynamic = 'force-dynamic';
++
++// Правка профиля: темы, «о себе», аватар. Все поля необязательные —
++// меняется только то, что пришло в запросе.
++export async function POST(req) {
++  let body;
++  try {
++    body = await req.json();
++  } catch {
++    return NextResponse.json({ error: 'bad_json' }, { status: 400 });
++  }
++  const { id, topics, bio, avatar, removeAvatar } = body || {};
++  if (!id || typeof id !== 'string') return NextResponse.json({ error: 'invalid_data' }, { status: 400 });
++
++  const existing = await redis.get(`user:${id}`);
++  if (!existing) return NextResponse.json({ error: 'not_found' }, { status: 404 });
++  const record = typeof existing === 'string' ? JSON.parse(existing) : existing;
++
++  if (topics !== undefined) {
++    if (!Array.isArray(topics) || topics.length === 0) {
++      return NextResponse.json({ error: 'invalid_data' }, { status: 400 });
++    }
++    record.topics = topics.slice(0, 20);
++  }
++
++  if (bio !== undefined) {
++    const b = cleanBio(bio);
++    if (!b.ok) return NextResponse.json({ error: b.error }, { status: 400 });
++    record.bio = b.value;
++  }
++
++  const ttl = ttlSecondsUntilMskMidnight();
++  const expiresAt = nextMskMidnightMs();
++
++  if (avatar !== undefined && avatar !== null) {
++    const a = parseAvatar(avatar);
++    if (!a.ok) return NextResponse.json({ error: 'invalid_avatar' }, { status: 400 });
++    await redis.set(`photo:${id}`, a.base64, { ex: ttl });
++    record.avatarV = Date.now();
++  } else if (removeAvatar === true) {
++    await redis.del(`photo:${id}`);
++    delete record.avatarV;
++  }
++
++  await redis.set(`user:${id}`, record, { ex: ttl });
++  await redis.zadd('active_users', { score: expiresAt, member: id });
++
++  return NextResponse.json({ ok: true, avatarV: record.avatarV || null, bio: record.bio || '' });
++}
+diff --git a/app/api/update-topics/route.js b/app/api/update-topics/route.js
+deleted file mode 100644
+index f5bb8e2..0000000
+--- a/app/api/update-topics/route.js
++++ /dev/null
+@@ -1,33 +0,0 @@
+-import { NextResponse } from 'next/server';
+-import { redis } from '@/lib/redis';
+-import { nextMskMidnightMs, ttlSecondsUntilMskMidnight } from '@/lib/time';
+-
+-export const dynamic = 'force-dynamic';
+-
+-export async function POST(req) {
+-  let body;
+-  try {
+-    body = await req.json();
+-  } catch {
+-    return NextResponse.json({ error: 'bad_json' }, { status: 400 });
+-  }
+-  const { id, topics } = body || {};
+-
+-  if (!id || !Array.isArray(topics) || topics.length === 0) {
+-    return NextResponse.json({ error: 'invalid_data' }, { status: 400 });
+-  }
+-
+-  const existing = await redis.get(`user:${id}`);
+-  if (!existing) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+-
+-  const record = typeof existing === 'string' ? JSON.parse(existing) : existing;
+-  record.topics = topics.slice(0, 20);
+-
+-  const expiresAt = nextMskMidnightMs();
+-  const ttl = ttlSecondsUntilMskMidnight();
+-
+-  await redis.set(`user:${id}`, record, { ex: ttl });
+-  await redis.zadd('active_users', { score: expiresAt, member: id });
+-
+-  return NextResponse.json({ ok: true });
+-}
+diff --git a/app/page.js b/app/page.js
+index cde0c05..3f3d193 100644
+--- a/app/page.js
++++ b/app/page.js
+@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
+ import RegisterForm from '@/components/RegisterForm';
+ import PeopleList from '@/components/PeopleList';
+ import ContactModal from '@/components/ContactModal';
+-import EditTopicsModal from '@/components/EditTopicsModal';
++import EditProfileModal from '@/components/EditProfileModal';
+ 
+ const STORAGE_KEY = 'pc_user';
+ 
+@@ -12,7 +12,7 @@ export default function HomePage() {
+   const [me, setMe] = useState(null); // {id, name, phone, topics}
+   const [checking, setChecking] = useState(true);
+   const [openedUser, setOpenedUser] = useState(null); // {id, name, phone}
+-  const [editingTopics, setEditingTopics] = useState(false);
++  const [editingProfile, setEditingProfile] = useState(false);
+ 
+   // При загрузке страницы проверяем, есть ли ещё активная сессия
+   useEffect(() => {
+@@ -26,7 +26,7 @@ export default function HomePage() {
+       .then((r) => r.json())
+       .then((data) => {
+         if (data.user) {
+-          setMe({ ...saved, topics: data.user.topics });
++          setMe({ ...saved, topics: data.user.topics, bio: data.user.bio || '', avatarV: data.user.avatarV || null });
+         } else {
+           localStorage.removeItem(STORAGE_KEY);
+         }
+@@ -66,16 +66,20 @@ export default function HomePage() {
+     }
+   }
+ 
+-  async function handleSaveTopics(topics) {
+-    await fetch('/api/update-topics', {
++  // patch: { topics, bio, avatar?: dataURL, removeAvatar?: true }
++  async function handleSaveProfile(patch) {
++    const res = await fetch('/api/update-profile', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+-      body: JSON.stringify({ id: me.id, topics }),
++      body: JSON.stringify({ id: me.id, ...patch }),
+     });
+-    const updated = { ...me, topics };
++    const data = await res.json().catch(() => ({}));
++    if (!res.ok) return { error: data.error || 'failed' };
++    const updated = { ...me, topics: patch.topics, bio: data.bio, avatarV: data.avatarV };
+     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+     setMe(updated);
+-    setEditingTopics(false);
++    setEditingProfile(false);
++    return {};
+   }
+ 
+   if (checking) {
+@@ -96,14 +100,14 @@ export default function HomePage() {
+         me={me}
+         onOpenUser={handleOpenUser}
+         onLeave={handleLeave}
+-        onEditTopics={() => setEditingTopics(true)}
++        onEditProfile={() => setEditingProfile(true)}
+       />
+       <ContactModal user={openedUser} onClose={() => setOpenedUser(null)} />
+-      {editingTopics && (
+-        <EditTopicsModal
+-          currentTopics={me.topics}
+-          onSave={handleSaveTopics}
+-          onClose={() => setEditingTopics(false)}
++      {editingProfile && (
++        <EditProfileModal
++          me={me}
++          onSave={handleSaveProfile}
++          onClose={() => setEditingProfile(false)}
+         />
+       )}
+     </>
+diff --git a/components/Avatar.jsx b/components/Avatar.jsx
+new file mode 100644
+index 0000000..bb01db3
+--- /dev/null
++++ b/components/Avatar.jsx
+@@ -0,0 +1,32 @@
++'use client';
++
++import { useState } from 'react';
++
++// Круглый аватар: фото, если есть, иначе первая буква имени.
++export default function Avatar({ name, src, className = 'h-11 w-11 text-lg' }) {
++  const [failed, setFailed] = useState(false);
++
++  if (src && !failed) {
++    return (
++      // eslint-disable-next-line @next/next/no-img-element
++      <img
++        src={src}
++        alt=""
++        width={96}
++        height={96}
++        loading="lazy"
++        onError={() => setFailed(true)}
++        className={`${className} shrink-0 rounded-full bg-surface2 object-cover`}
++        aria-hidden="true"
++      />
++    );
++  }
++  return (
++    <span
++      className={`${className} grid shrink-0 place-items-center rounded-full bg-brand/15 font-semibold text-link`}
++      aria-hidden="true"
++    >
++      {(name || '?').trim().charAt(0).toUpperCase()}
++    </span>
++  );
++}
+diff --git a/components/AvatarPicker.jsx b/components/AvatarPicker.jsx
+new file mode 100644
+index 0000000..3156810
+--- /dev/null
++++ b/components/AvatarPicker.jsx
+@@ -0,0 +1,66 @@
++'use client';
++
++import { useRef, useState } from 'react';
++import { fileToAvatarDataUrl } from '@/lib/avatarClient';
++
++// Выбор фото: на телефоне системный диалог предложит камеру или галерею.
++export default function AvatarPicker({ src, onPick, onRemove }) {
++  const inputRef = useRef(null);
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState('');
++
++  async function handleFile(e) {
++    const file = e.target.files?.[0];
++    e.target.value = ''; // чтобы можно было выбрать тот же файл повторно
++    if (!file) return;
++    setError('');
++    setBusy(true);
++    try {
++      onPick(await fileToAvatarDataUrl(file));
++    } catch {
++      setError('Не удалось обработать фото, попробуйте другое');
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  return (
++    <div className="flex flex-col items-center gap-2">
++      <button
++        type="button"
++        onClick={() => inputRef.current?.click()}
++        aria-label={src ? 'Изменить фото' : 'Добавить фото'}
++        className="relative grid h-24 w-24 place-items-center overflow-hidden rounded-full border-2 border-dashed border-line bg-surface2 text-muted transition-colors hover:border-brand/60"
++      >
++        {src ? (
++          // eslint-disable-next-line @next/next/no-img-element
++          <img src={src} alt="" className="h-full w-full object-cover" />
++        ) : (
++          <svg viewBox="0 0 24 24" className="h-9 w-9" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++            <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
++            <circle cx="12" cy="13" r="3.5" />
++          </svg>
++        )}
++        {busy && (
++          <span className="absolute inset-0 grid place-items-center bg-surface/70">
++            <span className="spinner !h-5 !w-5" />
++          </span>
++        )}
++      </button>
++      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
++
++      <div className="flex items-center gap-4 text-sm">
++        <button type="button" onClick={() => inputRef.current?.click()} className="text-link underline underline-offset-2">
++          {src ? 'Изменить фото' : 'Добавить фото'}
++        </button>
++        {src && (
++          <button type="button" onClick={onRemove} className="text-muted underline underline-offset-2">
++            Убрать
++          </button>
++        )}
++      </div>
++      <p className="text-center text-xs text-subtle">Необязательно. Лучше своё фото — так проще узнать друг друга.</p>
++      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
++    </div>
++  );
++}
+diff --git a/components/BioField.jsx b/components/BioField.jsx
+new file mode 100644
+index 0000000..e79bd5f
+--- /dev/null
++++ b/components/BioField.jsx
+@@ -0,0 +1,25 @@
++'use client';
++
++import { BIO_MAX } from '@/lib/bio';
++
++export default function BioField({ id = 'pc-bio', value, onChange }) {
++  return (
++    <div className="flex flex-col gap-1.5">
++      <label htmlFor={id} className="text-sm font-medium text-muted">
++        О себе <span className="font-normal text-subtle">(необязательно)</span>
++      </label>
++      <textarea
++        id={id}
++        className="field resize-none"
++        rows={3}
++        value={value}
++        onChange={(e) => onChange(e.target.value.slice(0, BIO_MAX))}
++        placeholder="Например: лечу в Москву, люблю путешествия и хорошие фильмы"
++        maxLength={BIO_MAX}
++      />
++      <p className="text-right text-xs text-subtle">
++        {value.length}/{BIO_MAX} · без ссылок и номеров телефонов
++      </p>
++    </div>
++  );
++}
+diff --git a/components/ContactModal.jsx b/components/ContactModal.jsx
+index 5dfa01c..ed161e1 100644
+--- a/components/ContactModal.jsx
++++ b/components/ContactModal.jsx
+@@ -1,6 +1,8 @@
+ 'use client';
+ 
+ import { useEffect, useRef } from 'react';
++import Avatar from './Avatar';
++import { avatarUrl } from '@/lib/avatarClient';
+ 
+ const STEPS = [
+   'Сохраните этот номер в контакты телефона.',
+@@ -37,9 +39,13 @@ export default function ContactModal({ user, onClose }) {
+         style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+       >
+         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line sm:hidden" aria-hidden="true" />
+-        <h2 id="contact-title" className="mb-2 text-lg font-semibold">
+-          {user.name}
+-        </h2>
++        <div className="mb-4 flex items-center gap-3">
++          <Avatar name={user.name} src={avatarUrl(user.id, user.avatarV)} className="h-16 w-16 text-2xl" />
++          <h2 id="contact-title" className="min-w-0 truncate text-lg font-semibold">
++            {user.name}
++          </h2>
++        </div>
++        {user.bio && <p className="mb-4 whitespace-pre-line text-sm text-muted">{user.bio}</p>}
+         <a
+           href={`tel:${user.phone.replace(/[^\d+]/g, '')}`}
+           className="mb-5 block rounded-xl border border-line bg-surface2 py-3 text-center font-mono text-2xl text-link transition-colors hover:border-brand/50"
+diff --git a/components/EditProfileModal.jsx b/components/EditProfileModal.jsx
+new file mode 100644
+index 0000000..a2a1503
+--- /dev/null
++++ b/components/EditProfileModal.jsx
+@@ -0,0 +1,122 @@
++'use client';
++
++import { useEffect, useRef, useState } from 'react';
++import { TOPICS } from '@/lib/topics';
++import { avatarUrl } from '@/lib/avatarClient';
++import AvatarPicker from './AvatarPicker';
++import BioField from './BioField';
++
++// «Мой профиль»: фото, «о себе» и темы в одной шторке.
++// onSave(patch) -> { error? }
++export default function EditProfileModal({ me, onSave, onClose }) {
++  const [topics, setTopics] = useState(me.topics);
++  const [bio, setBio] = useState(me.bio || '');
++  const [avatar, setAvatar] = useState(''); // новое фото (data URL)
++  const [removeAvatar, setRemoveAvatar] = useState(false);
++  const [saving, setSaving] = useState(false);
++  const [error, setError] = useState('');
++  const dialogRef = useRef(null);
++
++  useEffect(() => {
++    dialogRef.current?.focus();
++    const onKey = (e) => e.key === 'Escape' && onClose();
++    window.addEventListener('keydown', onKey);
++    return () => window.removeEventListener('keydown', onKey);
++  }, [onClose]);
++
++  const currentSrc = removeAvatar ? '' : avatar || avatarUrl(me.id, me.avatarV);
++
++  function toggle(t) {
++    setTopics((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
++  }
++
++  async function handleSave() {
++    if (topics.length === 0) return;
++    setError('');
++    setSaving(true);
++    try {
++      const patch = { topics, bio };
++      if (avatar) patch.avatar = avatar;
++      else if (removeAvatar) patch.removeAvatar = true;
++      const { error: err } = await onSave(patch);
++      if (err) {
++        setError(
++          err === 'bio_contacts'
++            ? 'В «О себе» нельзя указывать ссылки и номера телефонов'
++            : err === 'invalid_avatar'
++              ? 'Не удалось загрузить фото, выберите другое'
++              : 'Не удалось сохранить, попробуйте ещё раз'
++        );
++      }
++    } catch {
++      setError('Ошибка сети, попробуйте ещё раз');
++    } finally {
++      setSaving(false);
++    }
++  }
++
++  return (
++    <div
++      className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center"
++      onClick={onClose}
++    >
++      <div
++        ref={dialogRef}
++        role="dialog"
++        aria-modal="true"
++        aria-labelledby="profile-title"
++        tabIndex={-1}
++        onClick={(e) => e.stopPropagation()}
++        className="max-h-[92dvh] w-full animate-sheet-in overflow-y-auto rounded-t-3xl border-t border-line bg-surface p-5 shadow-2xl outline-none sm:max-w-sm sm:rounded-2xl sm:border"
++        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
++      >
++        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line sm:hidden" aria-hidden="true" />
++        <h2 id="profile-title" className="mb-4 text-lg font-semibold">
++          Мой профиль
++        </h2>
++
++        <div className="mb-5">
++          <AvatarPicker
++            src={currentSrc}
++            onPick={(d) => {
++              setAvatar(d);
++              setRemoveAvatar(false);
++            }}
++            onRemove={() => {
++              setAvatar('');
++              setRemoveAvatar(true);
++            }}
++          />
++        </div>
++
++        <div className="mb-5">
++          <BioField id="pc-bio-edit" value={bio} onChange={setBio} />
++        </div>
++
++        <p className="mb-2 text-sm font-medium text-muted">Темы для общения</p>
++        <div className="mb-3 flex flex-wrap gap-2">
++          {TOPICS.map((t) => (
++            <button key={t} type="button" onClick={() => toggle(t)} aria-pressed={topics.includes(t)} className="chip">
++              {t}
++            </button>
++          ))}
++        </div>
++        {topics.length === 0 && <p className="mb-3 text-xs text-danger">Выберите хотя бы одну тему.</p>}
++        {error && (
++          <p role="alert" className="alert-error mb-3">
++            {error}
++          </p>
++        )}
++
++        <div className="mt-2 flex gap-2">
++          <button type="button" onClick={onClose} className="btn btn-outline">
++            Отмена
++          </button>
++          <button type="button" onClick={handleSave} disabled={saving || topics.length === 0} className="btn btn-primary">
++            {saving ? 'Сохраняем...' : 'Сохранить'}
++          </button>
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/components/EditTopicsModal.jsx b/components/EditTopicsModal.jsx
+deleted file mode 100644
+index d3e5ac7..0000000
+--- a/components/EditTopicsModal.jsx
++++ /dev/null
+@@ -1,86 +0,0 @@
+-'use client';
+-
+-import { useEffect, useRef, useState } from 'react';
+-import { TOPICS } from '@/lib/topics';
+-
+-export default function EditTopicsModal({ currentTopics, onSave, onClose }) {
+-  const [topics, setTopics] = useState(currentTopics);
+-  const [saving, setSaving] = useState(false);
+-  const dialogRef = useRef(null);
+-
+-  useEffect(() => {
+-    dialogRef.current?.focus();
+-    const onKey = (e) => e.key === 'Escape' && onClose();
+-    window.addEventListener('keydown', onKey);
+-    return () => window.removeEventListener('keydown', onKey);
+-  }, [onClose]);
+-
+-  function toggle(t) {
+-    setTopics((prev) =>
+-      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+-    );
+-  }
+-
+-  async function handleSave() {
+-    if (topics.length === 0) return;
+-    setSaving(true);
+-    try {
+-      await onSave(topics);
+-    } finally {
+-      setSaving(false);
+-    }
+-  }
+-
+-  return (
+-    <div
+-      className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center"
+-      onClick={onClose}
+-    >
+-      <div
+-        ref={dialogRef}
+-        role="dialog"
+-        aria-modal="true"
+-        aria-labelledby="topics-title"
+-        tabIndex={-1}
+-        onClick={(e) => e.stopPropagation()}
+-        className="w-full animate-sheet-in rounded-t-3xl border-t border-line bg-surface p-5 shadow-2xl outline-none sm:max-w-sm sm:rounded-2xl sm:border"
+-        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+-      >
+-        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line sm:hidden" aria-hidden="true" />
+-        <h2 id="topics-title" className="mb-3 text-lg font-semibold">
+-          Изменить темы
+-        </h2>
+-        <div className="mb-3 flex flex-wrap gap-2">
+-          {TOPICS.map((t) => (
+-            <button
+-              key={t}
+-              type="button"
+-              onClick={() => toggle(t)}
+-              aria-pressed={topics.includes(t)}
+-              className="chip"
+-            >
+-              {t}
+-            </button>
+-          ))}
+-        </div>
+-        {topics.length === 0 && (
+-          <p className="mb-3 text-xs text-danger">Выберите хотя бы одну тему.</p>
+-        )}
+-
+-        <div className="mt-2 flex gap-2">
+-          <button type="button" onClick={onClose} className="btn btn-outline">
+-            Отмена
+-          </button>
+-          <button
+-            type="button"
+-            onClick={handleSave}
+-            disabled={saving || topics.length === 0}
+-            className="btn btn-primary"
+-          >
+-            {saving ? 'Сохраняем...' : 'Сохранить'}
+-          </button>
+-        </div>
+-      </div>
+-    </div>
+-  );
+-}
+diff --git a/components/PeopleList.jsx b/components/PeopleList.jsx
+index cec383d..188dc73 100644
+--- a/components/PeopleList.jsx
++++ b/components/PeopleList.jsx
+@@ -4,12 +4,14 @@ import { useEffect, useState, useCallback } from 'react';
+ import AgeFilterSheet from './AgeFilterSheet';
+ import AppHeader from './AppHeader';
+ import BusinessLoungeAd from './BusinessLoungeAd';
++import Avatar from './Avatar';
++import { avatarUrl } from '@/lib/avatarClient';
+ 
+ // Высота нижней несворачиваемой панели (реклама + кнопки) с небольшим запасом.
+ // Используется как отступ снизу у списка, чтобы контент не прятался под панель.
+ const BOTTOM_BAR_RESERVED_PX = 152;
+ 
+-export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
++export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
+   const [activeTopic, setActiveTopic] = useState('Все');
+   const [activeAge, setActiveAge] = useState('Все');
+   const [users, setUsers] = useState([]);
+@@ -108,7 +110,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+         {loading && (
+           <ul className="flex flex-col gap-2.5" aria-busy="true" aria-label="Загрузка списка">
+             {[0, 1, 2].map((i) => (
+-              <li key={i} className="h-[76px] animate-pulse rounded-2xl border border-line bg-surface2" />
++              <li key={i} className="h-[88px] animate-pulse rounded-2xl border border-line bg-surface2" />
+             ))}
+           </ul>
+         )}
+@@ -134,12 +136,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+                   onClick={() => onOpenUser(u)}
+                   className="flex w-full items-start gap-3 rounded-2xl border border-line bg-surface p-3.5 text-left shadow-sm transition-colors hover:border-brand/50 active:bg-surface2"
+                 >
+-                  <span
+-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand/15 text-base font-semibold text-link"
+-                    aria-hidden="true"
+-                  >
+-                    {(u.name || '?').trim().charAt(0).toUpperCase()}
+-                  </span>
++                  <Avatar name={u.name} src={avatarUrl(u.id, u.avatarV)} />
+                   <span className="min-w-0 flex-1">
+                     <span className="flex items-center justify-between gap-2">
+                       <span className="truncate font-medium">{u.name}</span>
+@@ -149,6 +146,9 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+                         </span>
+                       )}
+                     </span>
++                    {u.bio && (
++                      <span className="mt-1 line-clamp-2 whitespace-pre-line text-sm text-muted">{u.bio}</span>
++                    )}
+                     <span className="mt-1.5 flex flex-wrap gap-1">
+                       {u.topics.map((t) => (
+                         <span
+@@ -160,7 +160,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+                       ))}
+                     </span>
+                   </span>
+-                  <svg viewBox="0 0 24 24" className="mt-2.5 h-4 w-4 shrink-0 text-subtle" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++                  <svg viewBox="0 0 24 24" className="mt-3.5 h-4 w-4 shrink-0 text-subtle" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                     <path d="m9 6 6 6-6 6" />
+                   </svg>
+                 </button>
+@@ -181,8 +181,8 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+           <button type="button" onClick={onLeave} className="btn btn-danger-text">
+             Завершить общение
+           </button>
+-          <button type="button" onClick={onEditTopics} className="btn btn-primary">
+-            Изменить темы
++          <button type="button" onClick={onEditProfile} className="btn btn-primary">
++            Мой профиль
+           </button>
+         </div>
+       </div>
+diff --git a/components/RegisterForm.jsx b/components/RegisterForm.jsx
+index 628d2b3..426d937 100644
+--- a/components/RegisterForm.jsx
++++ b/components/RegisterForm.jsx
+@@ -6,12 +6,16 @@ import { TOPICS } from '@/lib/topics';
+ import { AGE_GROUPS } from '@/lib/ageGroups';
+ import { normalizePhoneInput, isValidRuPhone } from '@/lib/phone';
+ import AppHeader from './AppHeader';
++import AvatarPicker from './AvatarPicker';
++import BioField from './BioField';
+ 
+ export default function RegisterForm({ onRegistered }) {
+   const [name, setName] = useState('');
+   const [phone, setPhone] = useState('');
+   const [topics, setTopics] = useState([]);
+   const [ageGroup, setAgeGroup] = useState('');
++  const [bio, setBio] = useState('');
++  const [avatar, setAvatar] = useState(''); // data URL уже сжатого фото
+   const [consent, setConsent] = useState(false);
+   const [error, setError] = useState('');
+   const [loading, setLoading] = useState(false);
+@@ -81,15 +85,30 @@ export default function RegisterForm({ onRegistered }) {
+       const res = await fetch('/api/register', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+-        body: JSON.stringify({ name, phone, topics, ageGroup, consent, verifyToken: token }),
++        body: JSON.stringify({ name, phone, topics, ageGroup, consent, verifyToken: token, bio, avatar: avatar || undefined }),
+       });
+       const data = await res.json();
+       if (!res.ok) {
+-        setError('Не удалось начать поиск, попробуйте ещё раз');
++        setError(
++          data.error === 'bio_contacts'
++            ? 'В «О себе» нельзя указывать ссылки и номера телефонов'
++            : data.error === 'invalid_avatar'
++              ? 'Не удалось загрузить фото, выберите другое'
++              : 'Не удалось начать поиск, попробуйте ещё раз'
++        );
++        finishing.current = false;
+         setStep('form');
+         return;
+       }
+-      onRegistered({ id: data.id, name: name.trim(), phone: phone.trim(), topics, ageGroup });
++      onRegistered({
++        id: data.id,
++        name: name.trim(),
++        phone: phone.trim(),
++        topics,
++        ageGroup,
++        bio: bio.trim(),
++        avatarV: data.avatarV || null,
++      });
+     } catch {
+       setError('Ошибка сети, попробуйте ещё раз');
+       setStep('form');
+@@ -175,6 +194,8 @@ export default function RegisterForm({ onRegistered }) {
+       <AppHeader title="Ковер-самолет" subtitle="Найдите собеседника в аэропорту Геленджик" />
+ 
+       <div className="flex flex-col gap-5 px-4 pb-8 pt-2">
++        <AvatarPicker src={avatar} onPick={setAvatar} onRemove={() => setAvatar('')} />
++
+         <div className="flex flex-col gap-1.5">
+           <label htmlFor="pc-name" className="text-sm font-medium text-muted">
+             Имя
+@@ -246,6 +267,8 @@ export default function RegisterForm({ onRegistered }) {
+           </div>
+         </fieldset>
+ 
++        <BioField value={bio} onChange={setBio} />
++
+         <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface2 p-3 text-xs leading-relaxed text-muted">
+           <input
+             type="checkbox"
+@@ -262,7 +285,7 @@ export default function RegisterForm({ onRegistered }) {
+             >
+               согласие на обработку персональных данных
+             </Link>
+-            : имя, телефон, возраст и темы показываются другим пользователям.
++            : имя, фото, «о себе», возраст и темы показываются другим пользователям, телефон — тем, кто откроет вашу карточку.
+           </span>
+         </label>
+ 
+diff --git a/components/legal/ConsentDoc.jsx b/components/legal/ConsentDoc.jsx
+index c7c65d8..ce79899 100644
+--- a/components/legal/ConsentDoc.jsx
++++ b/components/legal/ConsentDoc.jsx
+@@ -37,13 +37,16 @@ export default function ConsentDoc({ embedded = false }) {
+           head={['Персональные данные', 'Цель']}
+           rows={[
+             [
+-              ['имя;', 'номер контактного телефона;', 'возрастная категория;', 'выбранные темы для общения.'],
++              ['имя;', 'номер контактного телефона;', 'возрастная категория;', 'выбранные темы для общения;', 'фотография (аватар) — по моему желанию;', 'краткая информация о себе — по моему желанию.'],
+               'Организация общения (цель 1).',
+             ],
+             [['номер контактного телефона;', 'IP-адрес устройства.'], 'Подтверждение номера и защита от злоупотреблений (цель 2).'],
+           ]}
+         />
+-        <p>Специальные категории персональных данных и биометрические персональные данные не обрабатываются.</p>
++        <p>
++          Специальные категории персональных данных и биометрические персональные данные не обрабатываются. Фотография
++          используется только для отображения в сервисе и не применяется для установления личности.
++        </p>
+       </Sec>
+ 
+       <Sec title="3. Действия с персональными данными и способ обработки">
+diff --git a/components/legal/PrivacyDoc.jsx b/components/legal/PrivacyDoc.jsx
+index 4c69427..f69717e 100644
+--- a/components/legal/PrivacyDoc.jsx
++++ b/components/legal/PrivacyDoc.jsx
+@@ -139,8 +139,8 @@ export default function PrivacyDoc({ embedded = false }) {
+         </P>
+         <P n="6.2.">
+           Для подтверждения принадлежности Пользователю указанного им номера телефона Общество поручает проверку номера
+-          звонком лицу: {PROCESSOR_LINE}. Этому лицу передаются номер телефона и IP-адрес Пользователя. Имя, выбранные
+-          темы общения и возрастная категория в {PROCESSOR.name} не передаются.
++          звонком лицу: {PROCESSOR_LINE}. Этому лицу передаются номер телефона и IP-адрес Пользователя. Имя, фотография,
++          информация о себе, выбранные темы общения и возрастная категория в {PROCESSOR.name} не передаются.
+         </P>
+         <P n="6.3.">
+           Помимо случая, указанного в пункте 6.2, обработка персональных данных третьими лицами осуществляется
+@@ -160,7 +160,7 @@ export default function PrivacyDoc({ embedded = false }) {
+           head={['Персональные данные', 'Цели обработки персональных данных']}
+           rows={[
+             [
+-              ['Имя;', 'Номер контактного телефона;', 'Возрастная категория;', 'Выбранные темы для общения.'],
++              ['Имя;', 'Номер контактного телефона;', 'Возрастная категория;', 'Выбранные темы для общения;', 'Фотография (аватар) — по желанию Пользователя;', 'Краткая информация о себе — по желанию Пользователя.'],
+               'Организация общения и обмена информацией между Пользователями официального сервиса «Ковер-самолет».',
+             ],
+             [
+@@ -174,7 +174,7 @@ export default function PrivacyDoc({ embedded = false }) {
+           отдельным документом (текст согласия: {SERVICE_URL}/consent).
+         </P>
+         <P n="8.3.">
+-          В рамках цели организации общения имя, выбранные темы и возрастная категория отображаются в списке сервиса
++          В рамках цели организации общения имя, фотография, информация о себе, выбранные темы и возрастная категория отображаются в списке сервиса
+           другим Пользователям; номер телефона отображается Пользователю, который открыл контактную карточку. Объём и
+           порядок такого доступа определены в согласии.
+         </P>
+@@ -268,7 +268,7 @@ export default function PrivacyDoc({ embedded = false }) {
+       {/* ИЗМЕНЕНО: добавлены конкретные сроки (в исходнике — только общая формулировка). */}
+       <Sec title="12. Срок обработки персональных данных">
+         <P n="12.1.">
+-          Имя, номер телефона, возрастная категория и выбранные темы хранятся не дольше текущих суток: они удаляются
++          Имя, номер телефона, возрастная категория, выбранные темы, фотография и информация о себе хранятся не дольше текущих суток: они удаляются
+           автоматически в 00:00 по московскому времени, а также раньше — при нажатии Пользователем кнопки «Завершить
+           общение» или при отзыве согласия.
+         </P>
+diff --git a/lib/avatarClient.js b/lib/avatarClient.js
+new file mode 100644
+index 0000000..9c5256f
+--- /dev/null
++++ b/lib/avatarClient.js
+@@ -0,0 +1,44 @@
++// Клиентская подготовка аватара: центрированная обрезка в квадрат и сжатие в JPEG.
++// Исходник с телефона (3–10 МБ) никуда не уходит — на сервер едет ~10 КБ.
++
++const SIZE = 192;
++const QUALITY = 0.82;
++const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
++
++function loadImage(file) {
++  return new Promise((resolve, reject) => {
++    const url = URL.createObjectURL(file);
++    const img = new Image();
++    img.onload = () => {
++      URL.revokeObjectURL(url);
++      resolve(img);
++    };
++    img.onerror = () => {
++      URL.revokeObjectURL(url);
++      reject(new Error('bad_image'));
++    };
++    img.src = url;
++  });
++}
++
++export async function fileToAvatarDataUrl(file) {
++  if (!file || !file.type.startsWith('image/') || file.size > MAX_SOURCE_BYTES) {
++    throw new Error('bad_image');
++  }
++  // современные браузеры применяют EXIF-ориентацию к <img> сами
++  const img = await loadImage(file);
++  const side = Math.min(img.naturalWidth, img.naturalHeight);
++  const sx = (img.naturalWidth - side) / 2;
++  const sy = (img.naturalHeight - side) / 2;
++
++  const canvas = document.createElement('canvas');
++  canvas.width = SIZE;
++  canvas.height = SIZE;
++  const ctx = canvas.getContext('2d');
++  ctx.fillStyle = '#fff'; // под прозрачные PNG
++  ctx.fillRect(0, 0, SIZE, SIZE);
++  ctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
++  return canvas.toDataURL('image/jpeg', QUALITY);
++}
++
++export const avatarUrl = (id, v) => (v ? `/api/avatar/${encodeURIComponent(id)}?v=${v}` : '');
+diff --git a/lib/bio.js b/lib/bio.js
+new file mode 100644
+index 0000000..ec0c498
+--- /dev/null
++++ b/lib/bio.js
+@@ -0,0 +1,2 @@
++// Константы профиля, безопасные для импорта и на клиенте, и на сервере.
++export const BIO_MAX = 140;
+diff --git a/lib/legal.js b/lib/legal.js
+index 708a594..49a4391 100644
+--- a/lib/legal.js
++++ b/lib/legal.js
+@@ -22,7 +22,7 @@ export const PROCESSOR = {
+ export const SERVICE_URL = 'https://kover.gelaero.ru';
+ 
+ // Менять при любом изменении текста согласия: версия пишется в запись пользователя.
+-export const CONSENT_VERSION = '1.0';
++export const CONSENT_VERSION = '1.1';
+ 
+ export const OPERATOR_LINE = `${OPERATOR.name} (ИНН ${OPERATOR.inn}, ОГРН ${OPERATOR.ogrn}, адрес местонахождения: ${OPERATOR.address})`;
+ export const PROCESSOR_LINE = `${PROCESSOR.name} (ИНН ${PROCESSOR.inn}, ОГРН ${PROCESSOR.ogrn}, адрес: ${PROCESSOR.address}; сервис ${PROCESSOR.site})`;
+diff --git a/lib/profile.js b/lib/profile.js
+new file mode 100644
+index 0000000..6b67d2a
+--- /dev/null
++++ b/lib/profile.js
+@@ -0,0 +1,44 @@
++// Профиль: короткое «о себе» и аватар. Общая серверная валидация.
++
++import { BIO_MAX } from '@/lib/bio';
++
++// Аватар приходит с клиента уже уменьшенным (192x192 JPEG, обычно 8–15 КБ).
++// Серверный лимит — защита от того, что кто-то зальёт в Redis что-то большое.
++const AVATAR_PREFIX = 'data:image/jpeg;base64,';
++const AVATAR_MAX_CHARS = 60_000;
++
++export const ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
++
++// -> { ok: true, value } | { ok: false, error }
++export function cleanBio(raw) {
++  if (raw == null || raw === '') return { ok: true, value: '' };
++  if (typeof raw !== 'string') return { ok: false, error: 'invalid_bio' };
++
++  const value = raw
++    .replace(/\r/g, '')
++    .replace(/[ \t]+/g, ' ')
++    .replace(/\n{2,}/g, '\n')
++    .trim();
++
++  if (value.length > BIO_MAX) return { ok: false, error: 'invalid_bio' };
++
++  // Контакты в «о себе» не нужны: телефон отдаётся только через карточку,
++  // а ссылки/номера в публичном списке — это спам и обход согласия.
++  const digits = value.replace(/\D/g, '');
++  if (digits.length >= 6 || /https?:|www\.|t\.me|\b[\w-]+\.(ru|com|net|org|me|io)\b/i.test(value)) {
++    return { ok: false, error: 'bio_contacts' };
++  }
++  return { ok: true, value };
++}
++
++// -> { ok: true, base64 } | { ok: false }
++export function parseAvatar(dataUrl) {
++  if (typeof dataUrl !== 'string') return { ok: false };
++  if (!dataUrl.startsWith(AVATAR_PREFIX) || dataUrl.length > AVATAR_MAX_CHARS) return { ok: false };
++  const base64 = dataUrl.slice(AVATAR_PREFIX.length);
++  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) return { ok: false };
++  // сигнатура JPEG: FF D8 FF
++  const head = Buffer.from(base64.slice(0, 8), 'base64');
++  if (head[0] !== 0xff || head[1] !== 0xd8 || head[2] !== 0xff) return { ok: false };
++  return { ok: true, base64 };
++}

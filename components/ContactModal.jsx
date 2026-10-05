@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import Avatar from './Avatar';
+import { avatarUrl } from '@/lib/avatarClient';
 
 const STEPS = [
   'Сохраните этот номер в контакты телефона.',
@@ -37,9 +39,13 @@ export default function ContactModal({ user, onClose }) {
         style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
       >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line sm:hidden" aria-hidden="true" />
-        <h2 id="contact-title" className="mb-2 text-lg font-semibold">
-          {user.name}
-        </h2>
+        <div className="mb-4 flex items-center gap-3">
+          <Avatar name={user.name} src={avatarUrl(user.id, user.avatarV)} className="h-16 w-16 text-2xl" />
+          <h2 id="contact-title" className="min-w-0 truncate text-lg font-semibold">
+            {user.name}
+          </h2>
+        </div>
+        {user.bio && <p className="mb-4 whitespace-pre-line text-sm text-muted">{user.bio}</p>}
         <a
           href={`tel:${user.phone.replace(/[^\d+]/g, '')}`}
           className="mb-5 block rounded-xl border border-line bg-surface2 py-3 text-center font-mono text-2xl text-link transition-colors hover:border-brand/50"

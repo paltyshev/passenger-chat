@@ -4,12 +4,14 @@ import { useEffect, useState, useCallback } from 'react';
 import AgeFilterSheet from './AgeFilterSheet';
 import AppHeader from './AppHeader';
 import BusinessLoungeAd from './BusinessLoungeAd';
+import Avatar from './Avatar';
+import { avatarUrl } from '@/lib/avatarClient';
 
 // Высота нижней несворачиваемой панели (реклама + кнопки) с небольшим запасом.
 // Используется как отступ снизу у списка, чтобы контент не прятался под панель.
 const BOTTOM_BAR_RESERVED_PX = 152;
 
-export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
+export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
   const [activeTopic, setActiveTopic] = useState('Все');
   const [activeAge, setActiveAge] = useState('Все');
   const [users, setUsers] = useState([]);
@@ -108,7 +110,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
         {loading && (
           <ul className="flex flex-col gap-2.5" aria-busy="true" aria-label="Загрузка списка">
             {[0, 1, 2].map((i) => (
-              <li key={i} className="h-[76px] animate-pulse rounded-2xl border border-line bg-surface2" />
+              <li key={i} className="h-[88px] animate-pulse rounded-2xl border border-line bg-surface2" />
             ))}
           </ul>
         )}
@@ -134,12 +136,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
                   onClick={() => onOpenUser(u)}
                   className="flex w-full items-start gap-3 rounded-2xl border border-line bg-surface p-3.5 text-left shadow-sm transition-colors hover:border-brand/50 active:bg-surface2"
                 >
-                  <span
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand/15 text-base font-semibold text-link"
-                    aria-hidden="true"
-                  >
-                    {(u.name || '?').trim().charAt(0).toUpperCase()}
-                  </span>
+                  <Avatar name={u.name} src={avatarUrl(u.id, u.avatarV)} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center justify-between gap-2">
                       <span className="truncate font-medium">{u.name}</span>
@@ -149,6 +146,9 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
                         </span>
                       )}
                     </span>
+                    {u.bio && (
+                      <span className="mt-1 line-clamp-2 whitespace-pre-line text-sm text-muted">{u.bio}</span>
+                    )}
                     <span className="mt-1.5 flex flex-wrap gap-1">
                       {u.topics.map((t) => (
                         <span
@@ -160,7 +160,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
                       ))}
                     </span>
                   </span>
-                  <svg viewBox="0 0 24 24" className="mt-2.5 h-4 w-4 shrink-0 text-subtle" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className="mt-3.5 h-4 w-4 shrink-0 text-subtle" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="m9 6 6 6-6 6" />
                   </svg>
                 </button>
@@ -181,8 +181,8 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditTopics }) {
           <button type="button" onClick={onLeave} className="btn btn-danger-text">
             Завершить общение
           </button>
-          <button type="button" onClick={onEditTopics} className="btn btn-primary">
-            Изменить темы
+          <button type="button" onClick={onEditProfile} className="btn btn-primary">
+            Мой профиль
           </button>
         </div>
       </div>

@@ -12,5 +12,11 @@ export async function GET(req) {
   if (!record) return NextResponse.json({ user: null });
 
   const user = typeof record === 'string' ? JSON.parse(record) : record;
-  return NextResponse.json({ user: { id: user.id, name: user.name, phone: user.phone } });
+  return NextResponse.json({ user: {
+      id: user.id,
+      name: user.name,
+      phone: user.phone,
+      bio: user.bio || '',
+      avatarV: user.avatarV || null,
+    } });
 }
