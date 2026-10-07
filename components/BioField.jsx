@@ -18,7 +18,7 @@ export default function BioField({ id = 'pc-bio', value, onChange }) {
         maxLength={BIO_MAX}
       />
       <p className="text-right text-xs text-subtle">
-        {value.length}/{BIO_MAX} · без ссылок и номеров телефонов
+        {value.length}/{BIO_MAX}
       </p>
     </div>
   );
