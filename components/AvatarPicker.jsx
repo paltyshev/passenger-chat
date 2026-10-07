@@ -59,7 +59,7 @@ export default function AvatarPicker({ src, onPick, onRemove }) {
           </button>
         )}
       </div>
-      <p className="text-center text-xs text-subtle">Необязательно. Лучше своё фото — так проще узнать друг друга.</p>
+      {/* <p className="text-center text-xs text-subtle">Необязательно. Лучше своё фото — так проще узнать друг друга.</p> */}
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}
     </div>
   );
