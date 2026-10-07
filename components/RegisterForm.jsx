@@ -230,7 +230,7 @@ export default function RegisterForm({ onRegistered }) {
 
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-sm font-medium text-muted">
-            Темы для общения <span className="font-normal text-subtle">(можно несколько)</span>
+            Темы для общения
           </legend>
           <div className="flex flex-wrap gap-2">
             {TOPICS.map((t) => (
@@ -249,7 +249,7 @@ export default function RegisterForm({ onRegistered }) {
 
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-sm font-medium text-muted" id="pc-age-label">
-            Возраст <span className="font-normal text-subtle">(с 18 лет, выберите один)</span>
+            Возраст
           </legend>
           <div role="radiogroup" aria-labelledby="pc-age-label" className="grid grid-cols-3 gap-2">
             {AGE_GROUPS.map((g) => (
