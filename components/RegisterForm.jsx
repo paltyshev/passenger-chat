@@ -205,7 +205,7 @@ export default function RegisterForm({ onRegistered }) {
             className="field"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Как к вам обращаться"
+            placeholder="Как к Вам обращаться"
             autoComplete="given-name"
             maxLength={60}
           />
