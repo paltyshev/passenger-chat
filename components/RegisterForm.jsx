@@ -102,11 +102,13 @@ export default function RegisterForm({ onRegistered }) {
       }
       onRegistered({
         id: data.id,
+        token: data.token,
         name: name.trim(),
         phone: phone.trim(),
         topics,
         ageGroup,
-        bio: bio.trim(),
+        // при повторном входе с того же номера сервер мог оставить прежнее «о себе»
+        bio: data.bio ?? bio.trim(),
         avatarV: data.avatarV || null,
       });
     } catch {

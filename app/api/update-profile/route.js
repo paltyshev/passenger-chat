@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { nextMskMidnightMs, ttlSecondsUntilMskMidnight } from '@/lib/time';
 import { cleanBio, parseAvatar } from '@/lib/profile';
+import { loadAuthorized } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,12 +15,11 @@ export async function POST(req) {
   } catch {
     return NextResponse.json({ error: 'bad_json' }, { status: 400 });
   }
-  const { id, topics, bio, avatar, removeAvatar } = body || {};
-  if (!id || typeof id !== 'string') return NextResponse.json({ error: 'invalid_data' }, { status: 400 });
+  const { id, token, topics, bio, avatar, removeAvatar } = body || {};
 
-  const existing = await redis.get(`user:${id}`);
-  if (!existing) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  const record = typeof existing === 'string' ? JSON.parse(existing) : existing;
+  const auth = await loadAuthorized(id, token);
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const { record } = auth;
 
   if (topics !== undefined) {
     if (!Array.isArray(topics) || topics.length === 0) {

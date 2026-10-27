@@ -7,6 +7,7 @@ import { AGE_GROUPS } from '@/lib/ageGroups';
 import { toSmsRuPhone } from '@/lib/smsru';
 import { CONSENT_VERSION } from '@/lib/legal';
 import { cleanBio, parseAvatar } from '@/lib/profile';
+import { MAX_DEVICES, getUser, hashToken, newSessionToken, phoneKey } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,8 @@ export async function POST(req) {
     return NextResponse.json({ error: 'bad_json' }, { status: 400 });
   }
 
-  const { id: clientId, name, phone, topics, ageGroup, consent, verifyToken, bio, avatar } = body || {};
+  // id клиент не передаёт: его выбирает сервер (новый или по номеру телефона)
+  const { name, phone, topics, ageGroup, consent, verifyToken, bio, avatar } = body || {};
 
   if (
     typeof name !== 'string' ||
@@ -57,27 +59,61 @@ export async function POST(req) {
   // токен одноразовый
   await redis.del(`vfy:${verifyToken}`);
 
-  const id = clientId || randomUUID();
   const expiresAt = nextMskMidnightMs();
   const ttl = ttlSecondsUntilMskMidnight();
+  const pKey = phoneKey(phone);
+
+  // Номер уже зарегистрирован сегодня (другой браузер или устройство) —
+  // подключаемся к его записи, а не заводим вторую.
+  let id = await redis.get(pKey);
+  let existing = id ? await getUser(id) : null;
+  if (!existing) {
+    id = randomUUID();
+    // NX: из двух одновременных регистраций одного номера индекс займёт одна
+    const claimed = await redis.set(pKey, id, { nx: true, ex: ttl });
+    if (!claimed) {
+      const otherId = await redis.get(pKey);
+      const other = otherId ? await getUser(otherId) : null;
+      if (other) {
+        id = otherId;
+        existing = other;
+      } else {
+        await redis.set(pKey, id, { ex: ttl });
+      }
+    }
+  }
+
+  const token = newSessionToken();
+  const now = Date.now();
 
   const record = {
+    ...existing,
     id,
     name: name.trim().slice(0, 60),
     phone: phone.trim().slice(0, 20),
     topics: topics.slice(0, 20),
     ageGroup,
-    bio: cleanedBio.value,
-    avatarV: photo ? Date.now() : undefined,
-    createdAt: Date.now(),
+    // пустые «о себе» и фото в новой форме не стирают заполненные раньше
+    bio: cleanedBio.value || existing?.bio || '',
+    avatarV: photo ? now : existing?.avatarV,
+    createdAt: existing?.createdAt || now,
     // подтверждение согласия: когда и по какой редакции текста дано
-    consentAt: Date.now(),
+    consentAt: now,
     consentVersion: CONSENT_VERSION,
+    tokenHashes: [...(existing?.tokenHashes || []), hashToken(token)].slice(-MAX_DEVICES),
   };
 
   if (photo) await redis.set(`photo:${id}`, photo.base64, { ex: ttl });
   await redis.set(`user:${id}`, record, { ex: ttl });
+  await redis.set(pKey, id, { ex: ttl });
   await redis.zadd('active_users', { score: expiresAt, member: id });
 
-  return NextResponse.json({ id, expiresAt, avatarV: record.avatarV || null });
+  return NextResponse.json({
+    id,
+    token,
+    expiresAt,
+    bio: record.bio,
+    avatarV: record.avatarV || null,
+    rejoined: Boolean(existing),
+  });
 }

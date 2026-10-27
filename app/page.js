@@ -9,7 +9,7 @@ import EditProfileModal from '@/components/EditProfileModal';
 const STORAGE_KEY = 'pc_user';
 
 export default function HomePage() {
-  const [me, setMe] = useState(null); // {id, name, phone, topics}
+  const [me, setMe] = useState(null); // {id, token, name, phone, topics}
   const [checking, setChecking] = useState(true);
   const [openedUser, setOpenedUser] = useState(null); // {id, name, phone}
   const [editingProfile, setEditingProfile] = useState(false);
@@ -22,7 +22,11 @@ export default function HomePage() {
       return;
     }
     const saved = JSON.parse(raw);
-    fetch(`/api/me?id=${encodeURIComponent(saved.id)}`)
+    fetch('/api/me', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: saved.id, token: saved.token }),
+    })
       .then((r) => r.json())
       .then((data) => {
         if (data.user) {
@@ -48,7 +52,7 @@ export default function HomePage() {
       await fetch('/api/leave', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: me.id }),
+        body: JSON.stringify({ id: me.id, token: me.token }),
       });
     } finally {
       localStorage.removeItem(STORAGE_KEY);
@@ -71,7 +75,7 @@ export default function HomePage() {
     const res = await fetch('/api/update-profile', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: me.id, ...patch }),
+      body: JSON.stringify({ id: me.id, token: me.token, ...patch }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { error: data.error || 'failed' };
