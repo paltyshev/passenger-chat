@@ -8,12 +8,14 @@ import { normalizePhoneInput, isValidRuPhone } from '@/lib/phone';
 import AppHeader from './AppHeader';
 import AvatarPicker from './AvatarPicker';
 import BioField from './BioField';
+import FlightPicker from './FlightPicker';
 
 export default function RegisterForm({ onRegistered }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [topics, setTopics] = useState([]);
   const [ageGroup, setAgeGroup] = useState('');
+  const [flight, setFlight] = useState(''); // номер рейса, например 'SU-1149'
   const [bio, setBio] = useState('');
   const [avatar, setAvatar] = useState(null); // { small, large } — data URL'ы уже сжатого фото
   const [consent, setConsent] = useState(false);
@@ -42,6 +44,7 @@ export default function RegisterForm({ onRegistered }) {
 
     if (!name.trim()) return setError('Введите имя');
     if (!isValidRuPhone(phone)) return setError('Введите корректный номер телефона: +7 900 000-00-00');
+    if (!flight) return setError('Выберите свой рейс');
     if (topics.length === 0) return setError('Выберите хотя бы одну тему');
     if (!ageGroup) return setError('Укажите возрастную группу');
     if (!consent) return setError('Нужно согласие на обработку персональных данных');
@@ -85,7 +88,7 @@ export default function RegisterForm({ onRegistered }) {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, topics, ageGroup, consent, verifyToken: token, bio, avatar: avatar?.small, avatarLarge: avatar?.large }),
+        body: JSON.stringify({ name, phone, topics, ageGroup, flight, consent, verifyToken: token, bio, avatar: avatar?.small, avatarLarge: avatar?.large }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -94,7 +97,11 @@ export default function RegisterForm({ onRegistered }) {
             ? 'В «О себе» нельзя указывать ссылки и номера телефонов'
             : data.error === 'invalid_avatar'
               ? 'Не удалось загрузить фото, выберите другое'
-              : 'Не удалось начать поиск, попробуйте ещё раз'
+              : data.error === 'invalid_flight'
+                ? 'Рейс не найден в табло вылетов, выберите его ещё раз'
+                : data.error === 'flights_unavailable'
+                  ? 'Табло вылетов сейчас недоступно, попробуйте через минуту'
+                  : 'Не удалось начать поиск, попробуйте ещё раз'
         );
         finishing.current = false;
         setStep('form');
@@ -107,6 +114,7 @@ export default function RegisterForm({ onRegistered }) {
         phone: phone.trim(),
         topics,
         ageGroup,
+        flight: data.flight,
         // при повторном входе с того же номера сервер мог оставить прежнее «о себе»
         bio: data.bio ?? bio.trim(),
         avatarV: data.avatarV || null,
@@ -230,6 +238,8 @@ export default function RegisterForm({ onRegistered }) {
           />
         </div>
 
+        <FlightPicker value={flight} onChange={setFlight} />
+
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-sm font-medium text-muted">
             Темы для общения
@@ -287,7 +297,7 @@ export default function RegisterForm({ onRegistered }) {
             >
               согласие на обработку персональных данных
             </Link>
-            : имя, фото, «о себе», возраст и темы показываются другим пользователям, телефон — тем, кто откроет вашу карточку.
+            : имя, фото, «о себе», возраст, рейс и темы показываются другим пользователям, телефон — тем, кто откроет вашу карточку.
           </span>
         </label>
 

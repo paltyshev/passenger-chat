@@ -8,6 +8,7 @@ export async function GET(req) {
   const selfId = searchParams.get('id') || '';
   const topic = searchParams.get('topic') || '';
   const ageGroup = searchParams.get('ageGroup') || '';
+  const flight = searchParams.get('flight') || '';
 
   const now = Date.now();
   // чистим протухшие записи из индекса
@@ -33,13 +34,18 @@ export async function GET(req) {
     users = users.filter((u) => u.ageGroup === ageGroup);
   }
 
-  // не отдаём телефон в общем списке — имя, темы, возраст, «о себе» и версию аватара
+  if (flight) {
+    users = users.filter((u) => u.flight?.number === flight);
+  }
+
+  // не отдаём телефон в общем списке — имя, темы, возраст, рейс, «о себе» и версию аватара
   // (саму картинку браузер берёт отдельно из /api/avatar/<id>?v=<avatarV> и кэширует)
-  const safeUsers = users.map(({ id, name, topics, ageGroup, bio, avatarV }) => ({
+  const safeUsers = users.map(({ id, name, topics, ageGroup, flight, bio, avatarV }) => ({
     id,
     name,
     topics,
     ageGroup,
+    flight: flight || null,
     bio: bio || '',
     avatarV: avatarV || null,
   }));

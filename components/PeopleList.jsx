@@ -1,11 +1,39 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import AgeFilterSheet from './AgeFilterSheet';
+import FilterSheet from './FilterSheet';
 import AppHeader from './AppHeader';
 import BusinessLoungeAd from './BusinessLoungeAd';
 import Avatar from './Avatar';
+import PlaneIcon from './PlaneIcon';
 import { avatarUrl } from '@/lib/avatarClient';
+import { AGE_GROUPS } from '@/lib/ageGroups';
+import { flightLabel, useTodayFlights } from '@/lib/flightClient';
+
+const AGE_OPTIONS = ['Все', ...AGE_GROUPS].map((g) => ({ value: g, label: g }));
+
+function ChevronDown() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+function ResetButton({ label, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-surface2 hover:text-fg"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6 6 18" />
+      </svg>
+    </button>
+  );
+}
 
 // Высота нижней несворачиваемой панели (реклама + кнопки) с небольшим запасом.
 // Используется как отступ снизу у списка, чтобы контент не прятался под панель.
@@ -16,15 +44,27 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
   const [activeAge, setActiveAge] = useState('Все');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [ageSheetOpen, setAgeSheetOpen] = useState(false);
+  const [activeFlight, setActiveFlight] = useState('Все');
+  const [sheet, setSheet] = useState(null); // 'age' | 'flight' | null
+  const { flights } = useTodayFlights();
 
   const topicTabs = ['Все', ...me.topics];
   const ageActive = activeAge !== 'Все';
+  const flightActive = activeFlight !== 'Все';
+
+  // Варианты фильтра — сегодняшние вылеты; свой рейс первым, даже если табло его уже не показывает
+  const myFlight = me.flight?.number;
+  const flightOptions = [
+    { value: 'Все', label: 'Все' },
+    ...(me.flight ? [{ value: myFlight, label: flightLabel(me.flight), hint: 'мой рейс' }] : []),
+    ...flights.filter((f) => f.number !== myFlight).map((f) => ({ value: f.number, label: flightLabel(f) })),
+  ];
 
   const load = useCallback(async () => {
     const params = new URLSearchParams({ id: me.id });
     if (activeTopic !== 'Все') params.set('topic', activeTopic);
     if (activeAge !== 'Все') params.set('ageGroup', activeAge);
+    if (activeFlight !== 'Все') params.set('flight', activeFlight);
 
     try {
       const res = await fetch(`/api/list?${params.toString()}`);
@@ -35,7 +75,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
     } finally {
       setLoading(false);
     }
-  }, [activeTopic, activeAge, me.id]);
+  }, [activeTopic, activeAge, activeFlight, me.id]);
 
   // Форма регистрации длинная и обычно прокручена к кнопке внизу —
   // после входа список должен открываться с самого верха.
@@ -54,7 +94,10 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
     <div className="flex min-h-[100dvh] flex-col">
       {/* Шапка + фильтры — единый sticky-блок сверху */}
       <div className="sticky top-0 z-10 shrink-0 border-b border-line bg-surface/95 backdrop-blur">
-        <AppHeader title="Собеседники рядом" subtitle={`Вы: ${me.name}`} />
+        <AppHeader
+          title="Собеседники рядом"
+          subtitle={`Вы: ${me.name}${me.flight ? ` · рейс ${me.flight.number}` : ''}`}
+        />
 
         {/* Темы — табы с подчёркиванием; справа градиент как подсказка прокрутки */}
         <div className="relative border-b border-line">
@@ -78,32 +121,31 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
           />
         </div>
 
-        {/* Возраст — одна кнопка, варианты в нижней шторке */}
-        <div className="flex items-center gap-2 px-4 py-2.5">
+        {/* Возраст и рейс — по кнопке, варианты в нижней шторке */}
+        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto px-4 py-2.5">
           <button
             type="button"
-            onClick={() => setAgeSheetOpen(true)}
+            onClick={() => setSheet('age')}
             aria-haspopup="dialog"
             aria-pressed={ageActive}
             className="chip gap-1.5"
           >
             Возраст: {ageActive ? activeAge : 'все'}
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
+            <ChevronDown />
           </button>
-          {ageActive && (
-            <button
-              type="button"
-              onClick={() => setActiveAge('Все')}
-              aria-label="Сбросить фильтр по возрасту"
-              className="grid h-8 w-8 place-items-center rounded-full text-muted transition-colors hover:bg-surface2 hover:text-fg"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
-          )}
+          {ageActive && <ResetButton label="Сбросить фильтр по возрасту" onClick={() => setActiveAge('Все')} />}
+
+          <button
+            type="button"
+            onClick={() => setSheet('flight')}
+            aria-haspopup="dialog"
+            aria-pressed={flightActive}
+            className="chip gap-1.5"
+          >
+            Рейс: {flightActive ? activeFlight : 'все'}
+            <ChevronDown />
+          </button>
+          {flightActive && <ResetButton label="Сбросить фильтр по рейсу" onClick={() => setActiveFlight('Все')} />}
         </div>
       </div>
 
@@ -152,6 +194,15 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
                         </span>
                       )}
                     </span>
+                    {u.flight && (
+                      <span className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                        <PlaneIcon />
+                        <span className="truncate">
+                          {flightLabel(u.flight)}
+                          {u.flight.number === myFlight && <span className="ml-1 font-medium text-accent-strong">· ваш рейс</span>}
+                        </span>
+                      </span>
+                    )}
                     {u.bio && (
                       <span className="mt-1 line-clamp-2 whitespace-pre-line text-sm text-muted">{u.bio}</span>
                     )}
@@ -193,14 +244,28 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
         </div>
       </div>
 
-      {ageSheetOpen && (
-        <AgeFilterSheet
+      {sheet === 'age' && (
+        <FilterSheet
+          title="Возраст собеседника"
+          options={AGE_OPTIONS}
           value={activeAge}
           onSelect={(g) => {
             setActiveAge(g);
-            setAgeSheetOpen(false);
+            setSheet(null);
           }}
-          onClose={() => setAgeSheetOpen(false)}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {sheet === 'flight' && (
+        <FilterSheet
+          title="Рейс собеседника"
+          options={flightOptions}
+          value={activeFlight}
+          onSelect={(f) => {
+            setActiveFlight(f);
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
         />
       )}
     </div>

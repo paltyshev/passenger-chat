@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Avatar from './Avatar';
 import PhotoViewer from './PhotoViewer';
+import PlaneIcon from './PlaneIcon';
 import { avatarLargeUrl, avatarUrl } from '@/lib/avatarClient';
+import { flightLabel } from '@/lib/flightClient';
 import { useBackClose } from '@/lib/useBackClose';
 
 const STEPS = [
@@ -64,9 +66,17 @@ export default function ContactModal({ user, onClose }) {
           ) : (
             <Avatar name={user.name} className="h-16 w-16 text-2xl" />
           )}
-          <h2 id="contact-title" className="min-w-0 truncate text-lg font-semibold">
-            {user.name}
-          </h2>
+          <div className="min-w-0">
+            <h2 id="contact-title" className="truncate text-lg font-semibold">
+              {user.name}
+            </h2>
+            {user.flight && (
+              <p className="flex items-center gap-1 text-sm text-muted">
+                <PlaneIcon />
+                <span className="truncate">Рейс {flightLabel(user.flight)}</span>
+              </p>
+            )}
+          </div>
         </div>
         {user.bio && <p className="mb-4 whitespace-pre-line text-sm text-muted">{user.bio}</p>}
         <a

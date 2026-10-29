@@ -3,10 +3,11 @@ import { redis } from '@/lib/redis';
 import { nextMskMidnightMs, ttlSecondsUntilMskMidnight } from '@/lib/time';
 import { AVATAR_LARGE_MAX_CHARS, cleanBio, parseAvatar } from '@/lib/profile';
 import { loadAuthorized } from '@/lib/session';
+import { resolveFlight } from '@/lib/flights';
 
 export const dynamic = 'force-dynamic';
 
-// Правка профиля: темы, «о себе», аватар. Все поля необязательные —
+// Правка профиля: темы, рейс, «о себе», аватар. Все поля необязательные —
 // меняется только то, что пришло в запросе.
 export async function POST(req) {
   let body;
@@ -15,7 +16,7 @@ export async function POST(req) {
   } catch {
     return NextResponse.json({ error: 'bad_json' }, { status: 400 });
   }
-  const { id, token, topics, bio, avatar, avatarLarge, removeAvatar } = body || {};
+  const { id, token, topics, flight, bio, avatar, avatarLarge, removeAvatar } = body || {};
 
   const auth = await loadAuthorized(id, token);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -26,6 +27,14 @@ export async function POST(req) {
       return NextResponse.json({ error: 'invalid_data' }, { status: 400 });
     }
     record.topics = topics.slice(0, 20);
+  }
+
+  if (flight !== undefined) {
+    const f = await resolveFlight(flight);
+    if (!f.ok) {
+      return NextResponse.json({ error: f.error }, { status: f.error === 'flights_unavailable' ? 503 : 400 });
+    }
+    record.flight = f.flight;
   }
 
   if (bio !== undefined) {
@@ -55,5 +64,10 @@ export async function POST(req) {
   await redis.set(`user:${id}`, record, { ex: ttl });
   await redis.zadd('active_users', { score: expiresAt, member: id });
 
-  return NextResponse.json({ ok: true, avatarV: record.avatarV || null, bio: record.bio || '' });
+  return NextResponse.json({
+    ok: true,
+    avatarV: record.avatarV || null,
+    bio: record.bio || '',
+    flight: record.flight || null,
+  });
 }

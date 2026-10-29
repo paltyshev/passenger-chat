@@ -6,11 +6,13 @@ import { avatarUrl } from '@/lib/avatarClient';
 import { useBackClose } from '@/lib/useBackClose';
 import AvatarPicker from './AvatarPicker';
 import BioField from './BioField';
+import FlightPicker from './FlightPicker';
 
-// «Мой профиль»: фото, «о себе» и темы в одной шторке.
+// «Мой профиль»: фото, рейс, «о себе» и темы в одной шторке.
 // onSave(patch) -> { error? }
 export default function EditProfileModal({ me, onSave, onClose }) {
   const [topics, setTopics] = useState(me.topics);
+  const [flight, setFlight] = useState(me.flight?.number || '');
   const [bio, setBio] = useState(me.bio || '');
   const [avatar, setAvatar] = useState(null); // новое фото { small, large }
   const [removeAvatar, setRemoveAvatar] = useState(false);
@@ -38,6 +40,8 @@ export default function EditProfileModal({ me, onSave, onClose }) {
     setSaving(true);
     try {
       const patch = { topics, bio };
+      // рейс шлём только если его поменяли
+      if (flight && flight !== me.flight?.number) patch.flight = flight;
       if (avatar) {
         patch.avatar = avatar.small;
         patch.avatarLarge = avatar.large;
@@ -50,7 +54,11 @@ export default function EditProfileModal({ me, onSave, onClose }) {
             ? 'В «О себе» нельзя указывать ссылки и номера телефонов'
             : err === 'invalid_avatar'
               ? 'Не удалось загрузить фото, выберите другое'
-              : 'Не удалось сохранить, попробуйте ещё раз'
+              : err === 'invalid_flight'
+                ? 'Рейс не найден в табло вылетов, выберите другой'
+                : err === 'flights_unavailable'
+                  ? 'Табло вылетов сейчас недоступно, попробуйте через минуту'
+                  : 'Не удалось сохранить, попробуйте ещё раз'
         );
       }
     } catch {
@@ -92,6 +100,10 @@ export default function EditProfileModal({ me, onSave, onClose }) {
               setRemoveAvatar(true);
             }}
           />
+        </div>
+
+        <div className="mb-5">
+          <FlightPicker value={flight} onChange={setFlight} labelId="pc-flight-edit-label" />
         </div>
 
         <div className="mb-5">

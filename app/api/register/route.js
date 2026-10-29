@@ -6,6 +6,7 @@ import { isValidRuPhone } from '@/lib/phone';
 import { AGE_GROUPS } from '@/lib/ageGroups';
 import { toSmsRuPhone } from '@/lib/smsru';
 import { CONSENT_VERSION } from '@/lib/legal';
+import { resolveFlight } from '@/lib/flights';
 import { AVATAR_LARGE_MAX_CHARS, cleanBio, parseAvatar } from '@/lib/profile';
 import { MAX_DEVICES, getUser, hashToken, newSessionToken, phoneKey } from '@/lib/session';
 
@@ -20,7 +21,7 @@ export async function POST(req) {
   }
 
   // id клиент не передаёт: его выбирает сервер (новый или по номеру телефона)
-  const { name, phone, topics, ageGroup, consent, verifyToken, bio, avatar, avatarLarge } = body || {};
+  const { name, phone, topics, ageGroup, flight, consent, verifyToken, bio, avatar, avatarLarge } = body || {};
 
   if (
     typeof name !== 'string' ||
@@ -51,6 +52,13 @@ export async function POST(req) {
       photoLarge = parseAvatar(avatarLarge, AVATAR_LARGE_MAX_CHARS);
       if (!photoLarge.ok) return NextResponse.json({ error: 'invalid_avatar' }, { status: 400 });
     }
+  }
+
+  // Рейс обязателен и должен быть в сегодняшнем табло вылетов.
+  // Проверяем до одноразового токена звонка, чтобы ошибка не сжигала проверку номера.
+  const resolved = await resolveFlight(flight);
+  if (!resolved.ok) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.error === 'flights_unavailable' ? 503 : 400 });
   }
 
   // Номер должен быть подтверждён звонком (см. /api/verify/*).
@@ -99,6 +107,7 @@ export async function POST(req) {
     phone: phone.trim().slice(0, 20),
     topics: topics.slice(0, 20),
     ageGroup,
+    flight: resolved.flight,
     // пустые «о себе» и фото в новой форме не стирают заполненные раньше
     bio: cleanedBio.value || existing?.bio || '',
     avatarV: photo ? now : existing?.avatarV,
@@ -124,6 +133,7 @@ export async function POST(req) {
     expiresAt,
     bio: record.bio,
     avatarV: record.avatarV || null,
+    flight: record.flight,
     rejoined: Boolean(existing),
   });
 }

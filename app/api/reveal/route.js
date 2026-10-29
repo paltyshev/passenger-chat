@@ -16,6 +16,7 @@ export async function GET(req) {
       id: user.id,
       name: user.name,
       phone: user.phone,
+      flight: user.flight || null,
       bio: user.bio || '',
       avatarV: user.avatarV || null,
     } });

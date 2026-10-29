@@ -9,7 +9,7 @@ import EditProfileModal from '@/components/EditProfileModal';
 const STORAGE_KEY = 'pc_user';
 
 export default function HomePage() {
-  const [me, setMe] = useState(null); // {id, token, name, phone, topics}
+  const [me, setMe] = useState(null); // {id, token, name, phone, topics, flight}
   const [checking, setChecking] = useState(true);
   const [openedUser, setOpenedUser] = useState(null); // {id, name, phone}
   const [editingProfile, setEditingProfile] = useState(false);
@@ -30,7 +30,13 @@ export default function HomePage() {
       .then((r) => r.json())
       .then((data) => {
         if (data.user) {
-          setMe({ ...saved, topics: data.user.topics, bio: data.user.bio || '', avatarV: data.user.avatarV || null });
+          setMe({
+            ...saved,
+            topics: data.user.topics,
+            flight: data.user.flight || null,
+            bio: data.user.bio || '',
+            avatarV: data.user.avatarV || null,
+          });
         } else {
           localStorage.removeItem(STORAGE_KEY);
         }
@@ -70,7 +76,7 @@ export default function HomePage() {
     }
   }
 
-  // patch: { topics, bio, avatar?: dataURL, removeAvatar?: true }
+  // patch: { topics, flight?, bio, avatar?: dataURL, removeAvatar?: true }
   async function handleSaveProfile(patch) {
     const res = await fetch('/api/update-profile', {
       method: 'POST',
@@ -79,7 +85,7 @@ export default function HomePage() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { error: data.error || 'failed' };
-    const updated = { ...me, topics: patch.topics, bio: data.bio, avatarV: data.avatarV };
+    const updated = { ...me, topics: patch.topics, flight: data.flight, bio: data.bio, avatarV: data.avatarV };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     setMe(updated);
     setEditingProfile(false);
