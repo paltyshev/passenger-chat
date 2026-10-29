@@ -2,7 +2,7 @@
 
 Мобильное одностраничное приложение: пассажиры оставляют имя, телефон и темы
 для общения, видят список желающих поговорить и находят контакт для связи в
-мессенджере. Записи хранятся до 00:00 по московскому времени (TTL в Redis).
+мессенджере. Каждая запись хранится 7 суток с момента регистрации (TTL в Redis, срок — поле `expiresAt` записи; правка профиля его не продлевает).
 
 Стек: Next.js 14 (App Router) + Tailwind + Upstash Redis (бесплатный тариф,
 подключается через Vercel Marketplace).
@@ -16,7 +16,7 @@
 - `components/EditTopicsModal.jsx` — модалка смены тем.
 - `app/api/*` — серверные роуты (register/list/reveal/update-topics/leave/me).
 - `lib/redis.js` — клиент Upstash Redis.
-- `lib/time.js` — расчёт TTL до полуночи МСК.
+- `lib/time.js` — срок жизни записи (`RECORD_LIFETIME_MS`, сейчас 7 суток) и расчёт полуночи МСК.
 - `lib/topics.js` — список тем (правь под себя).
 - `lib/flights.js` — сегодняшние вылеты с табло gelaero.ru (кэш в Redis 5 мин, ключ `flights:departures`); `GET /api/flights` отдаёт их форме и фильтру.
 

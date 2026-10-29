@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { nextMskMidnightMs, ttlSecondsUntilMskMidnight } from '@/lib/time';
+import { recordExpiresAt, ttlSecondsUntil } from '@/lib/time';
 import { AVATAR_LARGE_MAX_CHARS, cleanBio, parseAvatar } from '@/lib/profile';
 import { loadAuthorized } from '@/lib/session';
 import { resolveFlight } from '@/lib/flights';
@@ -43,8 +43,9 @@ export async function POST(req) {
     record.bio = b.value;
   }
 
-  const ttl = ttlSecondsUntilMskMidnight();
-  const expiresAt = nextMskMidnightMs();
+  // Правка не продлевает запись: срок остаётся тем, что выставлен при регистрации
+  const expiresAt = recordExpiresAt(record);
+  const ttl = ttlSecondsUntil(expiresAt);
 
   if (avatar !== undefined && avatar !== null) {
     const a = parseAvatar(avatar);

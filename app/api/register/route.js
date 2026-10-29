@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { redis } from '@/lib/redis';
-import { nextMskMidnightMs, ttlSecondsUntilMskMidnight } from '@/lib/time';
+import { recordExpiresAtFromNow, ttlSecondsUntil } from '@/lib/time';
 import { isValidRuPhone } from '@/lib/phone';
 import { AGE_GROUPS } from '@/lib/ageGroups';
 import { toSmsRuPhone } from '@/lib/smsru';
@@ -73,11 +73,13 @@ export async function POST(req) {
   // токен одноразовый
   await redis.del(`vfy:${verifyToken}`);
 
-  const expiresAt = nextMskMidnightMs();
-  const ttl = ttlSecondsUntilMskMidnight();
+  // У каждой записи свой срок: неделя с момента регистрации. Повторная
+  // регистрация с того же номера — новое согласие, срок отсчитывается заново.
+  const expiresAt = recordExpiresAtFromNow();
+  const ttl = ttlSecondsUntil(expiresAt);
   const pKey = phoneKey(phone);
 
-  // Номер уже зарегистрирован сегодня (другой браузер или устройство) —
+  // Номер уже зарегистрирован (другой браузер или устройство) —
   // подключаемся к его записи, а не заводим вторую.
   let id = await redis.get(pKey);
   let existing = id ? await getUser(id) : null;
@@ -112,6 +114,7 @@ export async function POST(req) {
     bio: cleanedBio.value || existing?.bio || '',
     avatarV: photo ? now : existing?.avatarV,
     createdAt: existing?.createdAt || now,
+    expiresAt,
     // подтверждение согласия: когда и по какой редакции текста дано
     consentAt: now,
     consentVersion: CONSENT_VERSION,
@@ -122,6 +125,10 @@ export async function POST(req) {
     await redis.set(`photo:${id}`, photo.base64, { ex: ttl });
     if (photoLarge) await redis.set(`photoLg:${id}`, photoLarge.base64, { ex: ttl });
     else await redis.del(`photoLg:${id}`);
+  } else if (existing?.avatarV) {
+    // прежнее фото остаётся — его срок должен совпадать с новым сроком записи
+    await redis.expire(`photo:${id}`, ttl);
+    await redis.expire(`photoLg:${id}`, ttl);
   }
   await redis.set(`user:${id}`, record, { ex: ttl });
   await redis.set(pKey, id, { ex: ttl });

@@ -13,7 +13,8 @@ export async function GET(req) {
   const now = Date.now();
   // чистим протухшие записи из индекса
   await redis.zremrangebyscore('active_users', 0, now);
-  const ids = await redis.zrange('active_users', 0, -1);
+  // score — срок записи (регистрация + неделя), поэтому по убыванию: свежие сверху
+  const ids = await redis.zrange('active_users', 0, -1, { rev: true });
 
   if (!ids.length) {
     return NextResponse.json({ users: [], flights: [] });
