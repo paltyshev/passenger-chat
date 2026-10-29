@@ -8,7 +8,7 @@ import Avatar from './Avatar';
 import PlaneIcon from './PlaneIcon';
 import { avatarUrl } from '@/lib/avatarClient';
 import { AGE_GROUPS } from '@/lib/ageGroups';
-import { flightLabel, useTodayFlights } from '@/lib/flightClient';
+import { flightLabel } from '@/lib/flightClient';
 
 const AGE_OPTIONS = ['Все', ...AGE_GROUPS].map((g) => ({ value: g, label: g }));
 
@@ -46,18 +46,26 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
   const [loading, setLoading] = useState(true);
   const [activeFlight, setActiveFlight] = useState('Все');
   const [sheet, setSheet] = useState(null); // 'age' | 'flight' | null
-  const { flights } = useTodayFlights();
+  const [flights, setFlights] = useState([]); // рейсы тех, кто в списке: [{ number, time, city, count }]
 
   const topicTabs = ['Все', ...me.topics];
   const ageActive = activeAge !== 'Все';
   const flightActive = activeFlight !== 'Все';
 
-  // Варианты фильтра — сегодняшние вылеты; свой рейс первым, даже если табло его уже не показывает
+  // Варианты фильтра — рейсы из списка; свой рейс первым, даже если на нём пока никого нет
   const myFlight = me.flight?.number;
+  const countOf = (number) => flights.find((f) => f.number === number)?.count || 0;
+  const others = flights.filter((f) => f.number !== myFlight);
+  // выбранный рейс не пропадает из шторки, даже если все его пассажиры ушли
+  if (flightActive && activeFlight !== myFlight && !others.some((f) => f.number === activeFlight)) {
+    others.push({ number: activeFlight, count: 0 });
+  }
   const flightOptions = [
     { value: 'Все', label: 'Все' },
-    ...(me.flight ? [{ value: myFlight, label: flightLabel(me.flight), hint: 'мой рейс' }] : []),
-    ...flights.filter((f) => f.number !== myFlight).map((f) => ({ value: f.number, label: flightLabel(f) })),
+    ...(me.flight
+      ? [{ value: myFlight, label: flightLabel(me.flight), hint: 'мой рейс', count: countOf(myFlight) }]
+      : []),
+    ...others.map((f) => ({ value: f.number, label: f.city ? flightLabel(f) : f.number, count: f.count })),
   ];
 
   const load = useCallback(async () => {
@@ -70,6 +78,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
       const res = await fetch(`/api/list?${params.toString()}`);
       const data = await res.json();
       setUsers(data.users || []);
+      setFlights(data.flights || []);
     } catch {
       // молча игнорируем разовую ошибку сети, следующий тик обновит список
     } finally {

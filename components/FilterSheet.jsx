@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useBackClose } from '@/lib/useBackClose';
 
 // Нижняя шторка фильтра списка (возраст, рейс). Выбор применяется сразу и закрывает шторку.
-// options: [{ value, label, hint? }]
+// options: [{ value, label, hint?, count? }]
 export default function FilterSheet({ title, options, value, onSelect, onClose }) {
   const dialogRef = useRef(null);
   const close = useBackClose(true, onClose);
@@ -54,6 +54,11 @@ export default function FilterSheet({ title, options, value, onSelect, onClose }
                   {o.hint && (
                     <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent-strong">
                       {o.hint}
+                    </span>
+                  )}
+                  {o.count !== undefined && (
+                    <span className="min-w-[1.5rem] text-right text-sm tabular-nums text-subtle" aria-label={`пассажиров: ${o.count}`}>
+                      {o.count}
                     </span>
                   )}
                   {selected && (

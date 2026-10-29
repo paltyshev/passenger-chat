@@ -16,7 +16,7 @@ export async function GET(req) {
   const ids = await redis.zrange('active_users', 0, -1);
 
   if (!ids.length) {
-    return NextResponse.json({ users: [] });
+    return NextResponse.json({ users: [], flights: [] });
   }
 
   const raw = await redis.mget(...ids.map((i) => `user:${i}`));
@@ -34,6 +34,19 @@ export async function GET(req) {
     users = users.filter((u) => u.ageGroup === ageGroup);
   }
 
+  // Варианты фильтра по рейсу — рейсы тех, кто сейчас в списке (с учётом темы и
+  // возраста, но до фильтра по самому рейсу), с числом пассажиров.
+  const byFlight = new Map();
+  for (const u of users) {
+    if (!u.flight?.number) continue;
+    const f = byFlight.get(u.flight.number);
+    if (f) f.count += 1;
+    else byFlight.set(u.flight.number, { ...u.flight, count: 1 });
+  }
+  const flights = [...byFlight.values()].sort(
+    (a, b) => String(a.time).localeCompare(String(b.time)) || a.number.localeCompare(b.number)
+  );
+
   if (flight) {
     users = users.filter((u) => u.flight?.number === flight);
   }
@@ -50,5 +63,5 @@ export async function GET(req) {
     avatarV: avatarV || null,
   }));
 
-  return NextResponse.json({ users: safeUsers });
+  return NextResponse.json({ users: safeUsers, flights });
 }
