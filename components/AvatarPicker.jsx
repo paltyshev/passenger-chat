@@ -1,9 +1,10 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { fileToAvatarDataUrl } from '@/lib/avatarClient';
+import { fileToAvatarDataUrls } from '@/lib/avatarClient';
 
 // Выбор фото: на телефоне системный диалог предложит камеру или галерею.
+// onPick({ small, large }) — две сжатые копии, см. lib/avatarClient.
 export default function AvatarPicker({ src, onPick, onRemove }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -16,7 +17,7 @@ export default function AvatarPicker({ src, onPick, onRemove }) {
     setError('');
     setBusy(true);
     try {
-      onPick(await fileToAvatarDataUrl(file));
+      onPick(await fileToAvatarDataUrls(file));
     } catch {
       setError('Не удалось обработать фото, попробуйте другое');
     } finally {

@@ -15,7 +15,7 @@ export default function RegisterForm({ onRegistered }) {
   const [topics, setTopics] = useState([]);
   const [ageGroup, setAgeGroup] = useState('');
   const [bio, setBio] = useState('');
-  const [avatar, setAvatar] = useState(''); // data URL уже сжатого фото
+  const [avatar, setAvatar] = useState(null); // { small, large } — data URL'ы уже сжатого фото
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -85,7 +85,7 @@ export default function RegisterForm({ onRegistered }) {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, topics, ageGroup, consent, verifyToken: token, bio, avatar: avatar || undefined }),
+        body: JSON.stringify({ name, phone, topics, ageGroup, consent, verifyToken: token, bio, avatar: avatar?.small, avatarLarge: avatar?.large }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -196,7 +196,7 @@ export default function RegisterForm({ onRegistered }) {
       <AppHeader title="Ковер-самолет" subtitle="Найдите собеседника в аэропорту Геленджик" />
 
       <div className="flex flex-col gap-5 px-4 pb-8 pt-2">
-        <AvatarPicker src={avatar} onPick={setAvatar} onRemove={() => setAvatar('')} />
+        <AvatarPicker src={avatar?.small || ''} onPick={setAvatar} onRemove={() => setAvatar(null)} />
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="pc-name" className="text-sm font-medium text-muted">

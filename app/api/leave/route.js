@@ -23,6 +23,7 @@ export async function POST(req) {
 
   await redis.del(`user:${id}`);
   await redis.del(`photo:${id}`);
+  await redis.del(`photoLg:${id}`);
   await redis.zrem('active_users', id);
   const pKey = phoneKey(auth.record.phone);
   if ((await redis.get(pKey)) === id) await redis.del(pKey);

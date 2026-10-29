@@ -37,6 +37,12 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
     }
   }, [activeTopic, activeAge, me.id]);
 
+  // Форма регистрации длинная и обычно прокручена к кнопке внизу —
+  // после входа список должен открываться с самого верха.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     setLoading(true);
     load();

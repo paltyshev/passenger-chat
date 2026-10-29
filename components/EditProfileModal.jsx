@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { TOPICS } from '@/lib/topics';
 import { avatarUrl } from '@/lib/avatarClient';
+import { useBackClose } from '@/lib/useBackClose';
 import AvatarPicker from './AvatarPicker';
 import BioField from './BioField';
 
@@ -11,20 +12,21 @@ import BioField from './BioField';
 export default function EditProfileModal({ me, onSave, onClose }) {
   const [topics, setTopics] = useState(me.topics);
   const [bio, setBio] = useState(me.bio || '');
-  const [avatar, setAvatar] = useState(''); // новое фото (data URL)
+  const [avatar, setAvatar] = useState(null); // новое фото { small, large }
   const [removeAvatar, setRemoveAvatar] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const dialogRef = useRef(null);
+  const close = useBackClose(true, onClose);
 
   useEffect(() => {
     dialogRef.current?.focus();
-    const onKey = (e) => e.key === 'Escape' && onClose();
+    const onKey = (e) => e.key === 'Escape' && close();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [close]);
 
-  const currentSrc = removeAvatar ? '' : avatar || avatarUrl(me.id, me.avatarV);
+  const currentSrc = removeAvatar ? '' : avatar?.small || avatarUrl(me.id, me.avatarV);
 
   function toggle(t) {
     setTopics((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
@@ -36,7 +38,10 @@ export default function EditProfileModal({ me, onSave, onClose }) {
     setSaving(true);
     try {
       const patch = { topics, bio };
-      if (avatar) patch.avatar = avatar;
+      if (avatar) {
+        patch.avatar = avatar.small;
+        patch.avatarLarge = avatar.large;
+      }
       else if (removeAvatar) patch.removeAvatar = true;
       const { error: err } = await onSave(patch);
       if (err) {
@@ -58,7 +63,7 @@ export default function EditProfileModal({ me, onSave, onClose }) {
   return (
     <div
       className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center"
-      onClick={onClose}
+      onClick={close}
     >
       <div
         ref={dialogRef}
@@ -83,7 +88,7 @@ export default function EditProfileModal({ me, onSave, onClose }) {
               setRemoveAvatar(false);
             }}
             onRemove={() => {
-              setAvatar('');
+              setAvatar(null);
               setRemoveAvatar(true);
             }}
           />
@@ -109,7 +114,7 @@ export default function EditProfileModal({ me, onSave, onClose }) {
         )}
 
         <div className="mt-2 flex gap-2">
-          <button type="button" onClick={onClose} className="btn btn-outline">
+          <button type="button" onClick={close} className="btn btn-outline">
             Отмена
           </button>
           <button type="button" onClick={handleSave} disabled={saving || topics.length === 0} className="btn btn-primary">

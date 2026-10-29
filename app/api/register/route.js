@@ -6,7 +6,7 @@ import { isValidRuPhone } from '@/lib/phone';
 import { AGE_GROUPS } from '@/lib/ageGroups';
 import { toSmsRuPhone } from '@/lib/smsru';
 import { CONSENT_VERSION } from '@/lib/legal';
-import { cleanBio, parseAvatar } from '@/lib/profile';
+import { AVATAR_LARGE_MAX_CHARS, cleanBio, parseAvatar } from '@/lib/profile';
 import { MAX_DEVICES, getUser, hashToken, newSessionToken, phoneKey } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ export async function POST(req) {
   }
 
   // id клиент не передаёт: его выбирает сервер (новый или по номеру телефона)
-  const { name, phone, topics, ageGroup, consent, verifyToken, bio, avatar } = body || {};
+  const { name, phone, topics, ageGroup, consent, verifyToken, bio, avatar, avatarLarge } = body || {};
 
   if (
     typeof name !== 'string' ||
@@ -42,9 +42,15 @@ export async function POST(req) {
     return NextResponse.json({ error: cleanedBio.error }, { status: 400 });
   }
   let photo = null;
+  let photoLarge = null;
   if (avatar !== undefined && avatar !== null && avatar !== '') {
     photo = parseAvatar(avatar);
     if (!photo.ok) return NextResponse.json({ error: 'invalid_avatar' }, { status: 400 });
+    // большая копия необязательна: без неё просмотр покажет маленькую
+    if (avatarLarge) {
+      photoLarge = parseAvatar(avatarLarge, AVATAR_LARGE_MAX_CHARS);
+      if (!photoLarge.ok) return NextResponse.json({ error: 'invalid_avatar' }, { status: 400 });
+    }
   }
 
   // Номер должен быть подтверждён звонком (см. /api/verify/*).
@@ -103,7 +109,11 @@ export async function POST(req) {
     tokenHashes: [...(existing?.tokenHashes || []), hashToken(token)].slice(-MAX_DEVICES),
   };
 
-  if (photo) await redis.set(`photo:${id}`, photo.base64, { ex: ttl });
+  if (photo) {
+    await redis.set(`photo:${id}`, photo.base64, { ex: ttl });
+    if (photoLarge) await redis.set(`photoLg:${id}`, photoLarge.base64, { ex: ttl });
+    else await redis.del(`photoLg:${id}`);
+  }
   await redis.set(`user:${id}`, record, { ex: ttl });
   await redis.set(pKey, id, { ex: ttl });
   await redis.zadd('active_users', { score: expiresAt, member: id });

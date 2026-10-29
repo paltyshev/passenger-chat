@@ -2,24 +2,26 @@
 
 import { useEffect, useRef } from 'react';
 import { AGE_GROUPS } from '@/lib/ageGroups';
+import { useBackClose } from '@/lib/useBackClose';
 
 const OPTIONS = ['Все', ...AGE_GROUPS];
 
 // Нижняя шторка выбора возрастной группы. Выбор применяется сразу и закрывает шторку.
 export default function AgeFilterSheet({ value, onSelect, onClose }) {
   const dialogRef = useRef(null);
+  const close = useBackClose(true, onClose);
 
   useEffect(() => {
     dialogRef.current?.focus();
-    const onKey = (e) => e.key === 'Escape' && onClose();
+    const onKey = (e) => e.key === 'Escape' && close();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [close]);
 
   return (
     <div
       className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center"
-      onClick={onClose}
+      onClick={close}
     >
       <div
         ref={dialogRef}

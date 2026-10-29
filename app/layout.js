@@ -32,8 +32,8 @@ export default function RootLayout({ children, modal }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
       </head>
-      <body className="min-h-screen">
-        <div className="mx-auto min-h-screen max-w-md bg-surface shadow-sm sm:border-x sm:border-line">
+      <body className="min-h-[100dvh]">
+        <div className="mx-auto min-h-[100dvh] max-w-md bg-surface shadow-sm sm:border-x sm:border-line">
           {children}
         </div>
         {modal}

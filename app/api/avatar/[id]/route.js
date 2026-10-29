@@ -5,11 +5,14 @@ export const dynamic = 'force-dynamic';
 
 // Отдаёт аватар как обычную картинку. Версия в ?v= меняется при смене фото,
 // поэтому браузер кэширует его и не дёргает Redis при каждом опросе списка.
-export async function GET(_req, { params }) {
+// ?size=lg — большая копия для просмотра; у фото, загруженных до её появления,
+// её нет — тогда отдаём маленькую.
+export async function GET(req, { params }) {
   const { id } = params;
   if (!ID_RE.test(id)) return new Response(null, { status: 404 });
 
-  const base64 = await redis.get(`photo:${id}`);
+  const large = new URL(req.url).searchParams.get('size') === 'lg';
+  const base64 = (large && (await redis.get(`photoLg:${id}`))) || (await redis.get(`photo:${id}`));
   if (!base64 || typeof base64 !== 'string') return new Response(null, { status: 404 });
 
   return new Response(Buffer.from(base64, 'base64'), {
