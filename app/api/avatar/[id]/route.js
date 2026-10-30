@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 // ?size=lg — большая копия для просмотра; у фото, загруженных до её появления,
 // её нет — тогда отдаём маленькую.
 export async function GET(req, { params }) {
-  const { id } = params;
+  const { id } = await params;
   if (!ID_RE.test(id)) return new Response(null, { status: 404 });
 
   const large = new URL(req.url).searchParams.get('size') === 'lg';
