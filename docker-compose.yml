@@ -1,3 +1,10 @@
+# Логи Docker без ротации растут бесконечно — ограничиваем 3 файлами по 10 МБ.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+
 services:
   passenger-chat:
     build: .
@@ -9,6 +16,10 @@ services:
       SMSRU_API_ID: ${SMSRU_API_ID}
     networks: [passenger_net]
     # публичных портов нет — доступ только изнутри passenger_net (через nginx opros)
+    logging: *logging
+    mem_limit: 512m
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
 
   redis:
     image: redis:7-alpine
@@ -17,9 +28,13 @@ services:
     volumes:
       - redis-data:/data
     networks: [passenger_net]
+    logging: *logging
+    mem_limit: 512m
+    security_opt: ['no-new-privileges:true']
 
   redis-srh:
-    image: hiett/serverless-redis-http:latest
+    # закреплено по digest: сторонний образ, :latest мог бы смениться незаметно
+    image: hiett/serverless-redis-http@sha256:5b0bb9239fce53abf87b2018a7a0deb9ec7bd900c5360738fe5fbeeb426f9150
     restart: unless-stopped
     environment:
       SRH_MODE: env
@@ -27,6 +42,9 @@ services:
       SRH_CONNECTION_STRING: redis://default:${REDIS_PASSWORD}@redis:6379
     depends_on: [redis]
     networks: [passenger_net]
+    logging: *logging
+    mem_limit: 256m
+    security_opt: ['no-new-privileges:true']
 
 networks:
   passenger_net:

@@ -20,12 +20,3 @@ export async function POST(req) {
   return NextResponse.json({ user: ownView(auth.record) });
 }
 
-// Старый клиент (страница, открытая до выкладки) спрашивает GET ?id=.
-// Отвечаем только по записям без токена — они созданы до токенов и доживают до полуночи.
-// TODO: убрать вместе с legacy-веткой в loadAuthorized.
-export async function GET(req) {
-  const id = new URL(req.url).searchParams.get('id');
-  const auth = await loadAuthorized(id, undefined);
-  if (auth.error) return NextResponse.json({ user: null });
-  return NextResponse.json({ user: ownView(auth.record) });
-}

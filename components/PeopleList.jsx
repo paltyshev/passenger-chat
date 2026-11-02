@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import FilterSheet from './FilterSheet';
 import AppHeader from './AppHeader';
 import BusinessLoungeAd from './BusinessLoungeAd';
@@ -48,6 +48,10 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
   const [sheet, setSheet] = useState(null); // 'age' | 'flight' | null
   const [flights, setFlights] = useState([]); // рейсы тех, кто в списке: [{ number, time, city, count }]
 
+  // onLeave меняется на каждом рендере страницы — держим в ref, чтобы не перезапускать опрос
+  const onLeaveRef = useRef(onLeave);
+  onLeaveRef.current = onLeave;
+
   const topicTabs = ['Все', ...me.topics];
   const ageActive = activeAge !== 'Все';
   const flightActive = activeFlight !== 'Все';
@@ -69,13 +73,22 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
   ];
 
   const load = useCallback(async () => {
-    const params = new URLSearchParams({ id: me.id });
-    if (activeTopic !== 'Все') params.set('topic', activeTopic);
-    if (activeAge !== 'Все') params.set('ageGroup', activeAge);
-    if (activeFlight !== 'Все') params.set('flight', activeFlight);
+    const filters = {};
+    if (activeTopic !== 'Все') filters.topic = activeTopic;
+    if (activeAge !== 'Все') filters.ageGroup = activeAge;
+    if (activeFlight !== 'Все') filters.flight = activeFlight;
 
     try {
-      const res = await fetch(`/api/list?${params.toString()}`);
+      const res = await fetch('/api/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: me.id, token: me.token, ...filters }),
+      });
+      // запись истекла или токен не подходит — возвращаем на регистрацию
+      if (res.status === 403 || res.status === 404) {
+        onLeaveRef.current();
+        return;
+      }
       const data = await res.json();
       setUsers(data.users || []);
       setFlights(data.flights || []);
@@ -84,7 +97,7 @@ export default function PeopleList({ me, onOpenUser, onLeave, onEditProfile }) {
     } finally {
       setLoading(false);
     }
-  }, [activeTopic, activeAge, activeFlight, me.id]);
+  }, [activeTopic, activeAge, activeFlight, me.id, me.token]);
 
   // Форма регистрации длинная и обычно прокручена к кнопке внизу —
   // после входа список должен открываться с самого верха.

@@ -1,14 +1,27 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { loadAuthorized } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req) {
-  const { searchParams } = new URL(req.url);
-  const selfId = searchParams.get('id') || '';
-  const topic = searchParams.get('topic') || '';
-  const ageGroup = searchParams.get('ageGroup') || '';
-  const flight = searchParams.get('flight') || '';
+// Список видят только зарегистрированные: имя, фото и рейс — персональные данные.
+// POST, чтобы токен не попадал в URL и логи nginx.
+export async function POST(req) {
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'bad_json' }, { status: 400 });
+  }
+  const { id, token } = body || {};
+  const str = (v) => (typeof v === 'string' ? v : '');
+  const topic = str(body?.topic);
+  const ageGroup = str(body?.ageGroup);
+  const flight = str(body?.flight);
+
+  const auth = await loadAuthorized(id, token);
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const selfId = id;
 
   const now = Date.now();
   // чистим протухшие записи из индекса
@@ -65,4 +78,9 @@ export async function GET(req) {
   }));
 
   return NextResponse.json({ users: safeUsers, flights });
+}
+
+// Старый клиент (страница, открытая до выкладки) опрашивает GET без токена.
+export async function GET() {
+  return NextResponse.json({ error: 'auth_required', users: [], flights: [] }, { status: 401 });
 }

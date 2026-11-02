@@ -7,7 +7,7 @@ import { AGE_GROUPS } from '@/lib/ageGroups';
 import { toSmsRuPhone } from '@/lib/smsru';
 import { CONSENT_VERSION } from '@/lib/legal';
 import { resolveFlight } from '@/lib/flights';
-import { AVATAR_LARGE_MAX_CHARS, cleanBio, parseAvatar } from '@/lib/profile';
+import { AVATAR_LARGE_MAX_CHARS, cleanBio, cleanTopics, parseAvatar } from '@/lib/profile';
 import { MAX_DEVICES, getUser, hashToken, newSessionToken, phoneKey } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -23,13 +23,13 @@ export async function POST(req) {
   // id клиент не передаёт: его выбирает сервер (новый или по номеру телефона)
   const { name, phone, topics, ageGroup, flight, consent, verifyToken, bio, avatar, avatarLarge } = body || {};
 
+  const cleanedTopics = cleanTopics(topics);
   if (
     typeof name !== 'string' ||
     !name.trim() ||
     typeof phone !== 'string' ||
     !isValidRuPhone(phone) ||
-    !Array.isArray(topics) ||
-    topics.length === 0 ||
+    !cleanedTopics.ok ||
     typeof ageGroup !== 'string' ||
     !AGE_GROUPS.includes(ageGroup) ||
     consent !== true
@@ -107,7 +107,7 @@ export async function POST(req) {
     id,
     name: name.trim().slice(0, 60),
     phone: phone.trim().slice(0, 20),
-    topics: topics.slice(0, 20),
+    topics: cleanedTopics.value,
     ageGroup,
     flight: resolved.flight,
     // пустые «о себе» и фото в новой форме не стирают заполненные раньше

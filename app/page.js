@@ -68,7 +68,11 @@ export default function HomePage() {
 
   async function handleOpenUser(u) {
     try {
-      const res = await fetch(`/api/reveal?id=${encodeURIComponent(u.id)}`);
+      const res = await fetch('/api/reveal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: me.id, token: me.token, targetId: u.id }),
+      });
       const data = await res.json();
       if (data.user) setOpenedUser(data.user);
     } catch {
